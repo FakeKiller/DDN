@@ -60,10 +60,10 @@ public class InfoSender implements Runnable {
                 // foreach record
                 while ((line = br.readLine()) != null) {
                     i++;
-                    // if record's group belongs to current cluster, topic is group_id, otherwise topic is "outer"
+                    // if record's group belongs to current cluster, topic is "internal_groups", otherwise topic is "external_groups"
                     JSONObject jObject = new JSONObject(line);
                     if (jObject.getString("cluster_id").equals(this.clusterID))
-                        topic = jObject.getString("group_id");
+                        topic = "internal_groups";
                     else
                         topic = "external_groups";
                     ProducerRecord<String, String> data = new ProducerRecord<>(topic, line);
