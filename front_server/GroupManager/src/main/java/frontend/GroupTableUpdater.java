@@ -2,6 +2,8 @@ package frontend;
 
 import java.io.*;
 import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -40,29 +42,33 @@ public class GroupTableUpdater implements Runnable {
         consumerProps.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
         consumerProps.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
         this.consumer = new KafkaConsumer<>(consumerProps);
-        consumer.subscribe(Arrays.asList("feature2group_table", "group2cluster_table"));
+        consumer.subscribe(Arrays.asList("group_table"));
     }
 
     public void run() {
         while (true) {
             ConsumerRecords<String, String> records = this.consumer.poll(1000);
             for (ConsumerRecord<String, String> record : records) {
-                if (record.topic().equals("group2cluster_table")) {
-                    JSONObject jObject = new JSONObject(record.value());
-                    JSONArray jArray = jObject.names();
+                JSONObject jObject = new JSONObject(record.value());
+
+                // if it is group to cluster map, save it
+                if (jObject.has("GroupAssignment")) {
+                    JSONArray jArray = jObject.getJSONArray("GroupAssignment");
                     for (int i = 0; i < jArray.length(); i++) {
-                        group2ClusterMap.put(jArray.getString(i), jObject.getString(jArray.getString(i)));
+                        group2ClusterMap.put(jArray.getJSONObject(i).getString("GroupName"), jArray.getJSONObject(i).getString("Cluster"));
                     }
                 }
-                else {
-                    try (Writer writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream("/var/www/info/match.php"), "utf-8"))) {
-                        // TODO: generate the php code
-                        String code = record.value();
 
-
-
-
-                        writer.write(code);
+                // if it is feature values to group map, generate new PHP code
+                if (jObject.has("GroupingRules")) {
+                    try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream("/var/www/info/match.php"), "utf-8"))) {
+                        JSONObject jObjectRules = jObject.getJSONObject("GroupingRules");
+                        ArrayList<String> code = phpGenerator(jObjectRules);
+                        Iterator<String> codeIter = code.iterator();
+                        while (codeIter.hasNext()) {
+                            writer.write(codeIter.next());
+                            writer.newLine();
+                        }
                     } catch (Exception e) {
                         System.err.println("Caught Exception: " + e.getMessage());
                     }
@@ -73,6 +79,37 @@ public class GroupTableUpdater implements Runnable {
             } catch(InterruptedException ex) {
                 Thread.currentThread().interrupt();
             }
+        }
+    }
+
+    private ArrayList<String> phpGenerator (JSONObject jObjectRules) {
+        ArrayList<String> code = new ArrayList<String>();
+        code.add("<?php");
+        code.add("// Match the request into groups, called by update.php");
+        code.add("//");
+        code.add("// Author: Shijie Sun");
+        code.add("// Email: septimus145@gmail.com");
+        code.add("// August, 2016");
+        code.add("");
+        code.add("// Hash the features and find the match");
+        ruleParser(jObjectRules, code, 0);
+        code.add("?>");
+        return code;
+    }
+
+    private void ruleParser (JSONObject jObjectRules, ArrayList<String> code, int indent) {
+        String indentStr = new String(new char[indent]).replace('\0', ' ');
+        if (jObjectRules.has("Field")) {
+            JSONArray jArrayTable = jObjectRules.getJSONArray("Table");
+            String field = jObjectRules.getString("Field");
+            for (int i = 0; i < jArrayTable.length(); i++) {
+                JSONObject jObjectRule = jArrayTable.getJSONObject(i);
+                code.add(indentStr + "if ($" + field + " == \"" + jObjectRule.getString("Key") + "\") {");
+                ruleParser(jObjectRule.getJSONObject("Rule"), code, indent+2);
+                code.add(indentStr + "}");
+            }
+        } else if (jObjectRules.has("GroupName")) {
+            code.add(indentStr + "$group_id = \"" + jObjectRules.getString("GroupName") + "\";");
         }
     }
 }
