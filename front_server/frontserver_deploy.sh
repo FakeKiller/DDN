@@ -22,12 +22,10 @@ export JAVA_HOME=$JAVA_HOME
 sudo apt-get install -y apache2 php5 libapache2-mod-php5
 
 # Configure the httpd
-sudo mv match.php /var/www/html
+sudo cp update.php /var/www/html
 sudo mkdir /var/www/info
 sudo chmod 777 /var/www/info
-sudo mv groupEnv.conf /var/www/info
-echo -e "\n# Include the group information\nIncludeOptional /var/www/info/*Env.conf" \
-    | sudo tee --append /etc/apache2/apache2.conf
+sudo cp match.php /var/www/info
 sudo sed -i -e "s/\(KeepAlive \).*/\1"Off"/" \
     /etc/apache2/apache2.conf
 sudo service apache2 reload

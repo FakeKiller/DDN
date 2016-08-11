@@ -21,12 +21,10 @@ public class GroupTableUpdater implements Runnable {
     protected String brokerList = "";		// list of broker
     protected String hostname = "";		// name of current host
     public KafkaConsumer<String, String> consumer = null;       // kafka consumer
-    protected String password = "";
 
-    public GroupTableUpdater( String hostname, String brokerList, String password ) {
+    public GroupTableUpdater( String hostname, String brokerList ) {
         this.hostname = hostname;
         this.brokerList = brokerList;
-        this.password = password;
         // setup consumer
         Properties consumerProps = new Properties();
         consumerProps.put("bootstrap.servers", brokerList);
@@ -45,10 +43,14 @@ public class GroupTableUpdater implements Runnable {
         while (true) {
             ConsumerRecords<String, String> records = tconsumer.poll(1000);
             for (ConsumerRecord<String, String> record : records) {
-                try (Writer writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream("/var/www/info/groupEnv.conf"), "utf-8"))) {
-                    writer.write(record.value());
-                    String[] cmd = {"/bin/bash", "-c", "echo \"" + this.password + "\" | sudo -S service apache2 reload"};
-                    Process pr = Runtime.getRuntime().exec(cmd);
+                try (Writer writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream("/var/www/info/match.php"), "utf-8"))) {
+                    // TODO: generate the php code
+                    String code = record.value();
+
+
+
+
+                    writer.write(code);
                 } catch (Exception e) {
                     System.err.println("Caught Exception: " + e.getMessage());
                 }

@@ -23,11 +23,9 @@ public class GroupManager {
     protected String hostname = "";
     protected String kafkaBrokerList = "";
     protected String clusterID = "";
-    protected String password = "";
 
-    public GroupManager( String clusterID, String kafkaServerList, String password ) {
+    public GroupManager( String clusterID, String kafkaServerList ) {
         this.clusterID = clusterID;
-        this.password = password;
         try {
             this.hostname = InetAddress.getLocalHost().getHostName();
         } catch (UnknownHostException e){
@@ -35,7 +33,7 @@ public class GroupManager {
         }
         this.kafkaBrokerList = kafkaServerList.replace(",",":9092,") + ":9092";
 
-        this.groupTableUpdater = new Thread(new GroupTableUpdater(this.hostname, this.kafkaBrokerList, this.password));
+        this.groupTableUpdater = new Thread(new GroupTableUpdater(this.hostname, this.kafkaBrokerList));
         this.groupTableUpdater.setDaemon(true);
         this.groupTableUpdater.start();
         System.out.println("Group table updater ready.");
@@ -53,16 +51,14 @@ public class GroupManager {
 
     public static void main( String[] args )
     {
-        // TODO: Fix this dangerous usage of root password
-        if (args.length < 3) {
-            System.out.println("Usage: java frontend.GroupManager cluster_ID kafka_server rootpwd");
+        if (args.length < 2) {
+            System.out.println("Usage: java frontend.GroupManager cluster_ID kafka_server");
             System.out.println("\n\tcluster_ID is the ID of current cluster");
             System.out.println("\n\tkafka_server is the list of IP of kafka servers, separated by comma");
-            System.out.println("\n\trootpwd is the password for root privilege");
             return;
         }
 
-        GroupManager gManager = new GroupManager(args[0], args[1], args[2]);
+        GroupManager gManager = new GroupManager(args[0], args[1]);
 
         while (true)
         {
