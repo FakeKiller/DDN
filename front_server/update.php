@@ -29,8 +29,7 @@ $info = array(
     "update" => array(
         "score" => $score
     ),
-    "group_id" => $group_id,
-    "cluster_id" => $cluster_id
+    "group_id" => $group_id
 );
 $in = json_encode($info).PHP_EOL;
 file_put_contents('/var/www/info/info_queue',$in,FILE_APPEND|LOCK_EX);

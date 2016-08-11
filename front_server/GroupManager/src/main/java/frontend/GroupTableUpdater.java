@@ -3,9 +3,12 @@ package frontend;
 import java.io.*;
 import java.util.Arrays;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.json.JSONObject;
+import org.json.JSONArray;
 
 /**
  * Fetch group table from Kafka and maintain it
@@ -21,10 +24,12 @@ public class GroupTableUpdater implements Runnable {
     protected String brokerList = "";		// list of broker
     protected String hostname = "";		// name of current host
     public KafkaConsumer<String, String> consumer = null;       // kafka consumer
+    public ConcurrentHashMap<String, String> group2ClusterMap = null;
 
-    public GroupTableUpdater( String hostname, String brokerList ) {
+    public GroupTableUpdater( String hostname, String brokerList, ConcurrentHashMap<String, String> group2ClusterMap ) {
         this.hostname = hostname;
         this.brokerList = brokerList;
+        this.group2ClusterMap = group2ClusterMap;
         // setup consumer
         Properties consumerProps = new Properties();
         consumerProps.put("bootstrap.servers", brokerList);
@@ -35,24 +40,32 @@ public class GroupTableUpdater implements Runnable {
         consumerProps.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
         consumerProps.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
         this.consumer = new KafkaConsumer<>(consumerProps);
-        consumer.subscribe(Arrays.asList("group_table"));
+        consumer.subscribe(Arrays.asList("feature2group_table", "group2cluster_table"));
     }
 
     public void run() {
-        KafkaConsumer<String, String> tconsumer = consumer;
         while (true) {
-            ConsumerRecords<String, String> records = tconsumer.poll(1000);
+            ConsumerRecords<String, String> records = this.consumer.poll(1000);
             for (ConsumerRecord<String, String> record : records) {
-                try (Writer writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream("/var/www/info/match.php"), "utf-8"))) {
-                    // TODO: generate the php code
-                    String code = record.value();
+                if (record.topic().equals("group2cluster_table")) {
+                    JSONObject jObject = new JSONObject(record.value());
+                    JSONArray jArray = jObject.names();
+                    for (int i = 0; i < jArray.length(); i++) {
+                        group2ClusterMap.put(jArray.getString(i), jObject.getString(jArray.getString(i)));
+                    }
+                }
+                else {
+                    try (Writer writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream("/var/www/info/match.php"), "utf-8"))) {
+                        // TODO: generate the php code
+                        String code = record.value();
 
 
 
 
-                    writer.write(code);
-                } catch (Exception e) {
-                    System.err.println("Caught Exception: " + e.getMessage());
+                        writer.write(code);
+                    } catch (Exception e) {
+                        System.err.println("Caught Exception: " + e.getMessage());
+                    }
                 }
             }
             try {

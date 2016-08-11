@@ -1,5 +1,6 @@
 package frontend;
 
+import java.util.concurrent.ConcurrentHashMap;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
@@ -23,6 +24,7 @@ public class GroupManager {
     protected String hostname = "";
     protected String kafkaBrokerList = "";
     protected String clusterID = "";
+    public ConcurrentHashMap<String, String> group2ClusterMap = null;
 
     public GroupManager( String clusterID, String kafkaServerList ) {
         this.clusterID = clusterID;
@@ -32,8 +34,9 @@ public class GroupManager {
             this.hostname = "HOST";
         }
         this.kafkaBrokerList = kafkaServerList.replace(",",":9092,") + ":9092";
+        this.group2ClusterMap = new ConcurrentHashMap<>();
 
-        this.groupTableUpdater = new Thread(new GroupTableUpdater(this.hostname, this.kafkaBrokerList));
+        this.groupTableUpdater = new Thread(new GroupTableUpdater(this.hostname, this.kafkaBrokerList, this.group2ClusterMap));
         this.groupTableUpdater.setDaemon(true);
         this.groupTableUpdater.start();
         System.out.println("Group table updater ready.");
@@ -43,7 +46,7 @@ public class GroupManager {
         this.decisionCollector.start();
         System.out.println("Decision collector ready.");
 
-        this.infoSender = new Thread(new InfoSender(this.hostname, this.kafkaBrokerList, this.clusterID));
+        this.infoSender = new Thread(new InfoSender(this.hostname, this.kafkaBrokerList, this.clusterID, this.group2ClusterMap));
         this.infoSender.setDaemon(true);
         this.infoSender.start();
         System.out.println("Info sender ready.");
