@@ -1,4 +1,4 @@
-package sskafkaserver;
+package frontend;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -31,20 +31,20 @@ import org.apache.log4j.Level;
 /**
  * Consumes messages from one or more topics in Kafka and does decision making.
  * Example:
- *    $ bin/spark-submit --class sskafkaserver.FrontendDecisionMaker --master local[2] ~/frontend/DMLogic/target/DMLogic-1.0-SNAPSHOT.jar \ 
+ *    $ bin/spark-submit --class frontend.DecisionMaker --master local[2] ~/frontend/DMLogic/target/DMLogic-1.0-SNAPSHOT.jar \
  *      broker1-host:port,broker2-host:port topic-in1,topic-in2 topic-out
  */
 
-public final class FrontendDecisionMaker {
+public final class DecisionMaker {
 
   private static final Pattern SPACE = Pattern.compile(" ");
   public static KafkaProducer<String, String> mykproducer = null;   // kafka producer
 
   public static void main(String[] args) throws Exception {
     if (args.length < 3) {
-      System.err.println("Usage: FrontendDecisionMaker <brokers> <topic-ins> <topic-out>\n" +
+      System.err.println("Usage: DecisionMaker <brokers> <topic-ins> <topic-out>\n" +
           "  <brokers> is a list of one or more Kafka brokers\n" +
-          "  <topic-ins> is a list of one or more kafka topics to consume from\n\n" + 
+          "  <topic-ins> is a list of one or more kafka topics to consume from\n\n" +
           "  <topic-out> is the kafka topic to publish the result\n\n");
       System.exit(1);
     }
@@ -61,7 +61,7 @@ public final class FrontendDecisionMaker {
     producerProps.put("bootstrap.servers", brokers);
     producerProps.put("acks", "all");
     producerProps.put("retries", 0);
-    producerProps.put("batch.size", 16384); 
+    producerProps.put("batch.size", 16384);
     producerProps.put("linger.ms", 1);
     producerProps.put("buffer.memory", 33554432);
     producerProps.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
@@ -69,7 +69,7 @@ public final class FrontendDecisionMaker {
     mykproducer = new KafkaProducer<String, String>(producerProps);
 
     // Create context with a 2 seconds batch interval
-    SparkConf sparkConf = new SparkConf().setAppName("FrontendDicisionMaker");
+    SparkConf sparkConf = new SparkConf().setAppName("DicisionMaker");
     JavaStreamingContext jssc = new JavaStreamingContext(sparkConf, Durations.milliseconds(1000));
 
     Set<String> topicsSet = new HashSet<>(Arrays.asList(topic_ins.split(",")));
@@ -87,23 +87,16 @@ public final class FrontendDecisionMaker {
         topicsSet
     );
 
-    // Get the qualities(lines)
-    JavaDStream<Integer> qualities = messages.map(new Function<Tuple2<String, String>, Integer>() {
-      @Override
-      public Integer call(Tuple2<String, String> tuple2) {
-          JSONObject jObject = new JSONObject(tuple2._2().trim());
-          // get a String from the JSON object
-          int score  = Integer.parseInt(jObject.getString("score"));
-          return score;
-      }
-    });
-
-    // map to pair and reduce by key to calculate the sum of sliding window
-    JavaPairDStream<String, Integer> qualitySums = qualities.mapToPair(
-      new PairFunction<Integer, String, Integer>() {
+    // map to pair to retrieve the data and group_id
+    // then reduce by key to calculate the sum of sliding window
+    JavaPairDStream<String, Integer> qualitySums = messages.mapToPair(
+      new PairFunction<Tuple2<String, String>, String, Integer>() {
         @Override
-        public Tuple2<String, Integer> call(Integer quality) {
-          return new Tuple2<>("hi", quality);
+        public Tuple2<String, Integer> call(Tuple2<String, String> tuple2) {
+          JSONObject jObject = new JSONObject(tuple2._2().trim());
+          String group_id = jObject.getString("group_id");
+          int score = jObject.getJSONObject("update").getInt("score");
+          return new Tuple2<>(group_id, score);
         }
       }).reduceByKeyAndWindow(
         new Function2<Integer, Integer, Integer>() {
@@ -122,7 +115,7 @@ public final class FrontendDecisionMaker {
             @Override
             public void call(Tuple2<String, Integer> tuple)
               throws Exception {
-                ProducerRecord<String, String> data = new ProducerRecord<>(topic_out, "Sum is " + tuple._2());
+                ProducerRecord<String, String> data = new ProducerRecord<>(topic_out, "Group: " + tuple._1() + "  =>  Sum: " + tuple._2());
                 KafkaProducer<String, String> mykproducer2 = new KafkaProducer<String, String>(producerProps);
                 mykproducer2.send(data);
                 //System.out.format("------- Sum: %d ------\n", tuple._2());
