@@ -28,11 +28,11 @@ public class GroupTableUpdater implements Runnable {
     public KafkaConsumer<String, String> consumer = null;       // kafka consumer
     public ConcurrentHashMap<String, String> group2ClusterMap = null;
 
-    public GroupTableUpdater( String hostname, String brokerList, ConcurrentHashMap<String, String> group2ClusterMap ) {
+    public GroupTableUpdater( String hostname, String clusterID, String brokerList, ConcurrentHashMap<String, String> group2ClusterMap ) {
         this.hostname = hostname;
         this.brokerList = brokerList;
         this.group2ClusterMap = group2ClusterMap;
-        group2ClusterMap.put("group1", "frontend1");
+        group2ClusterMap.put("null", clusterID);
         // setup consumer
         Properties consumerProps = new Properties();
         consumerProps.put("bootstrap.servers", brokerList);

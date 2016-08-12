@@ -10,8 +10,9 @@ set_include_path(get_include_path() . PATH_SEPARATOR . $path);
 
 include 'match.php';
 
+// if no match
 if (empty($group_id))
-    $group_id = "group1";
+    $group_id = "null";
 
 // Encode the info with json and write it into file
 $info = array(
@@ -19,7 +20,7 @@ $info = array(
     "group_id" => $group_id
 );
 
-$in = json_encode($info, JSON_UNESCAPED_SLASHES).PHP_EOL;
+$in = str_replace('\\"', '"', json_encode($info, JSON_UNESCAPED_SLASHES)).PHP_EOL;
 //echo $in;
 file_put_contents('/var/www/info/info_queue',$in,FILE_APPEND|LOCK_EX);
 

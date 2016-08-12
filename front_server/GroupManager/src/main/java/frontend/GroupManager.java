@@ -36,7 +36,7 @@ public class GroupManager {
         this.kafkaBrokerList = kafkaServerList.replace(",",":9092,") + ":9092";
         this.group2ClusterMap = new ConcurrentHashMap<>();
 
-        this.groupTableUpdater = new Thread(new GroupTableUpdater(this.hostname, this.kafkaBrokerList, this.group2ClusterMap));
+        this.groupTableUpdater = new Thread(new GroupTableUpdater(this.hostname, this.clusterID, this.kafkaBrokerList, this.group2ClusterMap));
         this.groupTableUpdater.setDaemon(true);
         this.groupTableUpdater.start();
         System.out.println("Group table updater ready.");
@@ -46,7 +46,7 @@ public class GroupManager {
         this.decisionCollector.start();
         System.out.println("Decision collector ready.");
 
-        this.infoSender = new Thread(new InfoSender(this.hostname, this.kafkaBrokerList, this.clusterID, this.group2ClusterMap));
+        this.infoSender = new Thread(new InfoSender(this.kafkaBrokerList, this.clusterID, this.group2ClusterMap));
         this.infoSender.setDaemon(true);
         this.infoSender.start();
         System.out.println("Info sender ready.");

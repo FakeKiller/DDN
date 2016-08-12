@@ -19,13 +19,11 @@ import org.json.JSONObject;
 public class InfoSender implements Runnable {
 
     protected String brokerList = "";		// list of broker
-    protected String hostName = "";		// name of current host
     protected String clusterID = "";
     public KafkaProducer<String, String> producer = null;	// kafka producer
     public ConcurrentHashMap<String, String> group2ClusterMap = null;
 
-    public InfoSender( String hostName, String brokerList, String clusterID, ConcurrentHashMap<String, String> group2ClusterMap ) {
-        this.hostName = hostName;
+    public InfoSender( String brokerList, String clusterID, ConcurrentHashMap<String, String> group2ClusterMap ) {
         this.brokerList = brokerList;
         this.clusterID = clusterID;
         this.group2ClusterMap = group2ClusterMap;
@@ -65,7 +63,11 @@ public class InfoSender implements Runnable {
                     i++;
                     // if record's group belongs to current cluster, topic is "internal_groups", otherwise topic is "external_groups"
                     JSONObject jObject = new JSONObject(line);
-                    String cluster = group2ClusterMap.get(jObject.getString("group_id"));
+                    String cluster;
+                    if (group2ClusterMap.containsKey(jObject.getString("group_id"))) {
+                        cluster = group2ClusterMap.get(jObject.getString("group_id"));
+                    else // if no cluster to map to, deal this group wthin current cluster
+                        cluster = this.clusterID;
                     if (cluster.equals(this.clusterID))
                         topic = "internal_groups";
                     else
