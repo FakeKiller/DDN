@@ -44,7 +44,7 @@ public final class DecisionMaker {
     if (args.length < 3) {
       System.err.println("Usage: DecisionMaker <brokers> <topic-ins> <topic-out>\n" +
           "  <brokers> is a list of one or more Kafka brokers\n" +
-          "  <topic-ins> is a list of one or more kafka topics to consume from\n\n" +
+          "  <topic-ins> is a list of one or more kafka topics to consume from\n" +
           "  <topic-out> is the kafka topic to publish the result\n\n");
       System.exit(1);
     }
@@ -52,7 +52,7 @@ public final class DecisionMaker {
     Logger.getLogger("org").setLevel(Level.OFF);
     Logger.getLogger("akka").setLevel(Level.OFF);
 
-    String brokers = args[0];
+    final String brokers = args[0];
     String topic_ins = args[1];
     final String topic_out = args[2];
 
@@ -69,7 +69,7 @@ public final class DecisionMaker {
     mykproducer = new KafkaProducer<String, String>(producerProps);
 
     // Create context with a 2 seconds batch interval
-    SparkConf sparkConf = new SparkConf().setAppName("DicisionMaker");
+    SparkConf sparkConf = new SparkConf().setAppName("DicisionMaker").setMaster("local");
     JavaStreamingContext jssc = new JavaStreamingContext(sparkConf, Durations.milliseconds(1000));
 
     Set<String> topicsSet = new HashSet<>(Arrays.asList(topic_ins.split(",")));
@@ -115,7 +115,7 @@ public final class DecisionMaker {
             @Override
             public void call(Tuple2<String, Integer> tuple)
               throws Exception {
-                ProducerRecord<String, String> data = new ProducerRecord<>(topic_out, "Group: " + tuple._1() + "  =>  Sum: " + tuple._2());
+                ProducerRecord<String, String> data = new ProducerRecord<>(topic_out, tuple._1() + ";Group: " + tuple._1() + "  =>  Sum: " + tuple._2() + "...From: " + brokers);
                 KafkaProducer<String, String> mykproducer2 = new KafkaProducer<String, String>(producerProps);
                 mykproducer2.send(data);
                 //System.out.format("------- Sum: %d ------\n", tuple._2());

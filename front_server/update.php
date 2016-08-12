@@ -8,30 +8,19 @@
 $path = '/var/www/info';
 set_include_path(get_include_path() . PATH_SEPARATOR . $path);
 
-// Get features
-if(! get_magic_quotes_gpc())
-{
-   $os = addslashes ($_POST['os']);
-   $isp = addslashes ($_POST['isp']);
-   $score = addslashes ($_POST['score']);
-}
-else
-{
-   $os = $_POST['os'];
-   $isp = $_POST['isp'];
-   $score = $_POST['score'];
-}
-
 include 'match.php';
+
+if (empty($group_id))
+    $group_id = "group1";
 
 // Encode the info with json and write it into file
 $info = array(
-    "update" => array(
-        "score" => $score
-    ),
+    "update" => $_POST,
     "group_id" => $group_id
 );
-$in = json_encode($info).PHP_EOL;
+
+$in = json_encode($info, JSON_UNESCAPED_SLASHES).PHP_EOL;
+//echo $in;
 file_put_contents('/var/www/info/info_queue',$in,FILE_APPEND|LOCK_EX);
 
 // Get result from file as response

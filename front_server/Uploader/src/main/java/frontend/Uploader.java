@@ -66,7 +66,8 @@ public class Uploader implements Runnable {
             ConsumerRecords<String, String> records = this.consumer.poll(1000);
             for (ConsumerRecord<String, String> record : records) {
                 // upload the update
-                ProducerRecord<String, String> data = new ProducerRecord<>(destTopic, record.value());
+                JSONObject jObject = new JSONObject(record.value());
+                ProducerRecord<String, String> data = new ProducerRecord<>(destTopic, jObject.getJSONObject("update").toString());
                 this.producer.send(data);
             }
             try {
