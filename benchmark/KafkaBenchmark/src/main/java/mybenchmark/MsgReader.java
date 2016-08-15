@@ -35,20 +35,22 @@ public class MsgReader implements Runnable {
         long timeLast = System.currentTimeMillis();
         long time_average = 0;
         int cnt = 0;
-        int rvalue = 0;
-        int MPS = 0;
+        // int rvalue = 0;
+        // int MPS = 0;
         while(! isStopped()) {
             ConsumerRecords<String, String> records = consumer.poll(1000);
             for (ConsumerRecord<String, String> record : records) {
-                rvalue = Integer.parseInt((record.value().trim().split(" "))[2]);
-                System.out.printf("offset = %d, time = %.3f, value = %s\n", record.offset(), (record.timestamp() - timeLast)/1000.0, rvalue);
+                // rvalue = Integer.parseInt((record.value().trim().split(" "))[2]);
+                // System.out.printf("offset = %d, time = %.3f, value = %s\n", record.offset(), (record.timestamp() - timeLast)/1000.0, rvalue);
+                System.out.printf("offset = %d, time = %.3f\n", record.offset(), (record.timestamp() - timeLast)/1000.0);
                 time_average += (record.timestamp() - timeLast);
-                MPS += rvalue;
+                // MPS += rvalue;
                 cnt++;
                 if (cnt >= 10) {
-                    System.out.printf("-------- average-time = %.3f, average MPS = %d --------\n", time_average/10000.0, MPS/8500);
+                    // System.out.printf("-------- average-time = %.3f, average MPS = %d --------\n", time_average/10000.0, MPS/8500);
+                    System.out.printf("-------- average-time = %.3f --------\n", time_average/10000.0);
                     cnt = 0;
-                    MPS = 0;
+                    // MPS = 0;
                     time_average = 0;
                 }
                 timeLast = record.timestamp();
@@ -63,12 +65,12 @@ public class MsgReader implements Runnable {
 
     public static void main( String[] args )
     {
-        if (args.length < 1) {
-            System.out.println("Usage: java mybenchmark.MsgReader topic");
+        if (args.length < 2) {
+            System.out.println("Usage: java mybenchmark.MsgReader kafka_server topic");
             return;
         }
-        String brokerList = "10.1.1.2:9092,10.1.1.3:9092";
-        Thread sender = new Thread(new MsgReader(args[0], brokerList));
+        String brokerList = args[0].replace(",",":9092,") + ":9092";
+        Thread sender = new Thread(new MsgReader(args[1], brokerList));
         sender.setDaemon(true);
         sender.start();
         while (true)

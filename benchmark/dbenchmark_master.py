@@ -13,9 +13,12 @@ import matplotlib.pyplot as plt
 import socket
 import sys
 
-SlaveList = ['node-5','node-6','node-3','node-4'] # name of slave hosts
-SlaveIPList = ['10.1.1.4','10.1.1.5','10.1.1.6','10.1.1.7'] # IP of slave hosts
-SlaveNumber = len(SlaveList)    # number of slaves to run together
+#SlaveList = ['node-5','node-6','node-3','node-4'] # name of slave hosts
+SlaveList = ['cp-3', 'cp-2'] # name of slave hosts
+#SlaveIPList = ['10.1.1.4','10.1.1.5','10.1.1.6','10.1.1.7'] # IP of slave hosts
+SlaveIPList = ['10.11.10.5', '10.11.10.4'] # IP of slave hosts
+SlavePortList = [str(i + 2396) for i in range(8)] # ports(slaves) of each host
+SlaveNumber = len(SlaveList) * len(SlavePortList) # number of slaves to run together
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
@@ -23,15 +26,18 @@ if __name__ == '__main__':
         sys.exit(1)
     Time = int(sys.argv[1])
     RPS = int(sys.argv[2])
-    assert (SlaveNumber == len(SlaveIPList))
+    assert (SlaveNumber == len(SlaveIPList) * len(SlavePortList))
+    filenames = list()
 
     # inform slaves to start to send request
-    for i in range(SlaveNumber):
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect((SlaveIPList[i], 2396))
-        s.sendall(str(Time) + ' ' + str(RPS))
-        s.close()
-        print SlaveList[i] + ' informed!'
+    for i in range(len(SlaveIPList)):
+        for j in range(len(SlavePortList)):
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.connect((SlaveIPList[i], int(SlavePortList[j])))
+            s.sendall(str(Time) + ' ' + str(RPS))
+            s.close()
+            print SlaveList[i] + ':' + SlavePortList[j] + ' informed!'
+            filenames.append(SlaveList[i]+'_'+SlavePortList[j])
 
     # wait till all slaves finish
     # TODO: let slaves inform master when they finished
@@ -44,8 +50,8 @@ if __name__ == '__main__':
     results_list = list()
     sent_requests = 0
     sent_time = 0
-    for filename in SlaveList:
-        f = open('../'+filename + '.bm','r')
+    for filename in filenames:
+        f = open(filename + '.bm','r')
         # first line is basic info of slave's work
         result = f.readline()
         result = eval(result.rstrip())
@@ -60,7 +66,7 @@ if __name__ == '__main__':
             result = f.readline()
         f.close()
 
-    sent_time /= len(SlaveList)
+    sent_time /= SlaveNumber
     successful_requests = len(results_list)
     print "Total requests sent: %d, successful requests: %d, time consumed: %f"%(sent_requests, successful_requests, sent_time)
 
@@ -123,6 +129,7 @@ if __name__ == '__main__':
         ax = fig.add_subplot(111)
         sorted_response_time = sorted(response_time)
         sorted_response_time = [x*1000 for x in sorted_response_time]
+        print "Response Time(90%): " + str(sorted_response_time[int(0.9 * len(sorted_response_time))])
         y_value = [y / float(len(sorted_response_time)) * 100 for y in range(len(sorted_response_time))]
         line1, = ax.plot(sorted_response_time, y_value, color='b')
         ax.set_xlabel('Response Time (millisecond)',fontsize=18)

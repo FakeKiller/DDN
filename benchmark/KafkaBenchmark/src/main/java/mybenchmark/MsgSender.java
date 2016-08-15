@@ -1,6 +1,7 @@
 package mybenchmark;
 
 import java.util.Properties;
+import java.io.*;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
@@ -12,20 +13,20 @@ public class MsgSender implements Runnable {
 
     protected boolean isStopped = false;
     protected String brokerList = "";		// list of broker
-    protected String hostName = "";		// name of current host
+    protected String hostname = "";		// name of current host
     public KafkaProducer<String, String> producer = null;	// kafka producer
     protected long mps = 1;
     protected long sleep_interval = 1000;
     protected long mploop = 1;
     protected callback1 mycb1 = null;
 
-    public MsgSender(int mps, String hostName, String brokerList) {
-        this.hostName = hostName;
+    public MsgSender(int mps, String hostname, String brokerList) {
+        this.hostname = hostname;
         this.brokerList = brokerList;
         this.mps = mps;
         this.sleep_interval = ((long)(this.sleep_interval / mps) < 1)?1:(long)(this.sleep_interval / mps);
         this.mploop = ((mps / 1000) > 1)?(mps / 1000):1;
-        System.out.println("------ Here is " + this.hostName + "------");
+        System.out.println("------ Here is " + this.hostname + "------");
         System.out.printf("sleep time: %d ms, msg per loop: %d\n", this.sleep_interval, this.mploop);
 
         // setup producer
@@ -68,8 +69,13 @@ public class MsgSender implements Runnable {
  
 
     public void run() {
-        String msg = "{\"phonetype\":\"N95\",\"cat\":\"WP\",\"score\":\"85\",\"meaningless\":\"yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\"}";
-        ProducerRecord<String, String> data = new ProducerRecord<>("info_update", msg);
+        String msg = "";
+        try (BufferedReader br = new BufferedReader(new FileReader("/var/www/msg.dat"))) {
+            msg = br.readLine();
+        } catch (Exception e) {
+            System.err.println("Read file Exception: " + e.getMessage());
+        }
+        ProducerRecord<String, String> data = new ProducerRecord<>("internal_groups", msg);
         this.mycb1 = new callback1(this.mps);
         while(! isStopped()) {
             for (int i=0;i<this.mploop;i++)
@@ -89,8 +95,8 @@ public class MsgSender implements Runnable {
 
     public static void main( String[] args )
     {
-        if (args.length < 1) {
-            System.out.println("Usage: java mybenchmark.MsgSender mps");
+        if (args.length < 2) {
+            System.out.println("Usage: java mybenchmark.MsgSender kafka_server mps");
             return;
         }
         String hostname = "HOST";
@@ -99,8 +105,8 @@ public class MsgSender implements Runnable {
         } catch (UnknownHostException e){
             hostname = "HOST";
         }
-        String brokerList = "10.1.1.2:9092,10.1.1.3:9092";
-        Thread sender = new Thread(new MsgSender(Integer.parseInt(args[0]), hostname, brokerList));
+        String brokerList = args[0].replace(",",":9092,") + ":9092";
+        Thread sender = new Thread(new MsgSender(Integer.parseInt(args[1]), hostname, brokerList));
         sender.setDaemon(true);
         sender.start();
         while (true)

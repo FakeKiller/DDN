@@ -43,7 +43,7 @@ public class InfoSender implements Runnable {
     public void run() {
         while(true) {
             try {
-                Thread.sleep(500);
+                Thread.sleep(100);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -64,7 +64,7 @@ public class InfoSender implements Runnable {
                     // if record's group belongs to current cluster, topic is "internal_groups", otherwise topic is "external_groups"
                     JSONObject jObject = new JSONObject(line);
                     String cluster;
-                    if (group2ClusterMap.containsKey(jObject.getString("group_id"))) {
+                    if (group2ClusterMap.containsKey(jObject.getString("group_id")))
                         cluster = group2ClusterMap.get(jObject.getString("group_id"));
                     else // if no cluster to map to, deal this group wthin current cluster
                         cluster = this.clusterID;

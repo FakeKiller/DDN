@@ -69,8 +69,10 @@ def request_generator(threads):
     args:
         threads:    threads dictionary to handle each thread
     '''
-    values = {'os':'os_x','isp':'comcast','score':'85','meaningless':'qwe'*100}
-    post_data = urllib.urlencode(values)    # encode the payload
+    #values = {'os':'os_x','isp':'comcast','score':'85','meaningless':'qwe'*100}
+    #post_data = urllib.urlencode(values)    # encode the payload
+    with open("post.data") as f:
+        post_data = f.readline()
     print "Size of payload: %d"%len(post_data)
     for idx in range(RPS * Time):
         # create performers for each request
@@ -101,15 +103,15 @@ class results_collector(threading.Thread):
                 results_list.append(msg)
 
 if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print "Usage: ", sys.argv[0], "url"
+    if len(sys.argv) < 3:
+        print "Usage: ", sys.argv[0], "port url"
         sys.exit(1)
-    URL = sys.argv[1]
+    URL = sys.argv[2]
 
     # bind port to receive the order from master
     platname = (platform.node()).split('.')[0]
     tasksocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    tasksocket.bind(('', 2396))
+    tasksocket.bind(('', int(sys.argv[1])))
     tasksocket.listen(5)
 
     # loop for orders
@@ -148,7 +150,7 @@ if __name__ == '__main__':
         print "Total %d requests sent, %d succeeded"%(sent_requests, successful_requests)
 
         # write the result into file
-        f=open(platname + ".bm", 'w')
+        f=open(platname + '_' + sys.argv[1] + ".bm", 'w')
         f.write(str([sent_requests,(stop_time-start_time), RPS]) + '\n')
         for result in results_list:
             f.write(str(result) + '\n')
