@@ -26,3 +26,6 @@ wget http://www-eu.apache.org/dist/spark/spark-1.6.2/spark-1.6.2-bin-hadoop2.6.t
 sudo tar -xvzf spark-1.6.2-bin-hadoop2.6.tgz -C /usr/share
 sudo mv /usr/share/spark-1.6.2-bin-hadoop2.6 /usr/share/spark
 rm spark-1.6.2-bin-hadoop2.6.tgz
+
+sudo mkdir -p /var/spark_tmp
+sudo cp ./entry.dat /var/spark_tmp/

@@ -20,7 +20,7 @@ $info = array(
     "group_id" => $group_id
 );
 
-$in = str_replace('\\"', '"', json_encode($info, JSON_UNESCAPED_SLASHES)).PHP_EOL;
+$in = json_encode($info, JSON_UNESCAPED_SLASHES).PHP_EOL;
 //echo $in;
 file_put_contents('/var/www/info/info_queue',$in,FILE_APPEND|LOCK_EX);
 
