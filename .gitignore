@@ -1,3 +1,4 @@
 *.dat
 *.data
 raw_data/
+front_server/gmconfig

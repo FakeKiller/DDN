@@ -6,6 +6,8 @@ import java.util.Properties;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.json.JSONObject;
+import org.json.JSONArray;
 
 /**
  * Fetch decisions from Kafka
@@ -44,8 +46,16 @@ public class DecisionCollector implements Runnable {
             ConsumerRecords<String, String> records = tconsumer.poll(1000);
             for (ConsumerRecord<String, String> record : records) {
                 String[] decision = record.value().split(";");
-                try (Writer writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream("/var/www/info/d_" + decision[0]), "utf-8"))) {
-                    writer.write(decision[1]);
+                try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream("/var/www/info/d_" + decision[0]), "utf-8"))) {
+                    JSONObject jObject = new JSONObject(decision[1]);
+                    writer.write(String.valueOf(jObject.getDouble("epsilon")));
+                    writer.newLine();
+                    writer.write(jObject.getString("best"));
+                    JSONArray jArray = jObject.getJSONArray("random");
+                    for (int i=0; i < jArray.length(); i++) {
+                         writer.newLine();
+                         writer.write(jArray.getString(i));
+                    }
                 } catch (Exception e) {
                     System.err.println("Caught Exception: " + e.getMessage());
                 }

@@ -26,7 +26,7 @@ public class GroupManager {
     protected String clusterID = "";
     public ConcurrentHashMap<String, String> group2ClusterMap = null;
 
-    public GroupManager( String clusterID, String kafkaServerList ) {
+    public GroupManager( String clusterID, String kafkaServerList, String configFile ) {
         this.clusterID = clusterID;
         try {
             this.hostname = InetAddress.getLocalHost().getHostName();
@@ -46,7 +46,7 @@ public class GroupManager {
         this.decisionCollector.start();
         System.out.println("Decision collector ready.");
 
-        this.infoSender = new Thread(new InfoSender(this.kafkaBrokerList, this.clusterID, this.group2ClusterMap));
+        this.infoSender = new Thread(new InfoSender(this.kafkaBrokerList, this.clusterID, this.group2ClusterMap, configFile));
         this.infoSender.setDaemon(true);
         this.infoSender.start();
         System.out.println("Info sender ready.");
@@ -54,14 +54,15 @@ public class GroupManager {
 
     public static void main( String[] args )
     {
-        if (args.length < 2) {
-            System.out.println("Usage: java frontend.GroupManager cluster_ID kafka_server");
+        if (args.length < 3) {
+            System.out.println("Usage: java frontend.GroupManager cluster_ID kafka_server config_file");
             System.out.println("\n\tcluster_ID is the ID of current cluster");
             System.out.println("\n\tkafka_server is the list of IP of kafka servers, separated by comma");
+            System.out.println("\n\tconfig_file contains labels of update info and reduced labels");
             return;
         }
 
-        GroupManager gManager = new GroupManager(args[0], args[1]);
+        GroupManager gManager = new GroupManager(args[0], args[1], args[2]);
 
         while (true)
         {

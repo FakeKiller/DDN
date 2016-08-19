@@ -29,6 +29,7 @@ import scala.Option;
 import scala.Some;
 
 import org.json.JSONObject;
+import org.json.JSONArray;
 
 import kafka.serializer.StringDecoder;
 import org.apache.kafka.clients.producer.KafkaProducer;
@@ -58,11 +59,12 @@ public final class DecisionMaker {
   public final static int processInterval = 2; // seconds
 
   public static void main(String[] args) throws Exception {
-    if (args.length < 4) {
-      System.err.println("Usage: DecisionMaker <brokers> <topic-in> <topic-out> <RPS>\n" +
+    if (args.length < 5) {
+      System.err.println("Usage: DecisionMaker <brokers> <topic-in> <topic-out> <epsilon> <RPS>\n" +
           "  <brokers> is a list of one or more Kafka brokers\n" +
           "  <topic-in> is the kafka topic to consume from\n" +
           "  <topic-out> is the kafka topic to publish the decision to\n" +
+          "  <epsilon> is the parameter of epsilon greedy algorithm\n" +
           "  <RPS> is the RPS to preload history data of sliding window\n");
       System.exit(1);
     }
@@ -74,7 +76,8 @@ public final class DecisionMaker {
     final String brokers = args[0];
     String topicIn = args[1];
     final String topicOut = args[2];
-    int RPS = Integer.parseInt(args[3]);
+    final double epsilon = Double.parseDouble(args[3]);
+    int RPS = Integer.parseInt(args[4]);
 
     // setup producer
     final Properties producerProps = new Properties();
@@ -132,38 +135,72 @@ public final class DecisionMaker {
     JavaPairDStream<String, String> historyPairDStream = new JavaPairDStream(historyDStream, ClassTag$.MODULE$.apply("".getClass()), ClassTag$.MODULE$.apply("".getClass()));
 
     // map to pair to retrieve the data and group_id
-    // then reduce by key to calculate the sum of sliding window
-    JavaPairDStream<String, Integer> qualitySums = messages.union(historyPairDStream).mapToPair(
-      new PairFunction<Tuple2<String, String>, String, Integer>() {
+    // then reduce by key to combine the performance of each decision within sliding window
+    JavaPairDStream<String, Map<String, double[]>> qualitySums = messages.union(historyPairDStream).mapToPair(
+      new PairFunction<Tuple2<String, String>, String, Map<String, double[]>>() {
         @Override
-        public Tuple2<String, Integer> call(Tuple2<String, String> tuple2) {
+        public Tuple2<String, Map<String, double[]>> call(Tuple2<String, String> tuple2) {
           JSONObject jObject = new JSONObject(tuple2._2().trim());
           String group_id = jObject.getString("group_id");
-          int score = jObject.getJSONObject("update").getInt("score");
-          return new Tuple2<>(group_id, score);
+          String[] updates = jObject.getString("update").split("\t");
+          int score = Integer.parseInt(updates[13]);
+          String decision = updates[14];
+          Map<String, double[]> info = new HashMap<String, double[]>();
+          info.put(decision, new double[]{score,1});
+          return new Tuple2<>(group_id, info);
         }
       }).reduceByKeyAndWindow(
-        new Function2<Integer, Integer, Integer>() {
+        new Function2<Map<String, double[]>, Map<String, double[]>, Map<String, double[]>>() {
         @Override
-        public Integer call(Integer i1, Integer i2) {
-          return i1 + i2;
+        public Map<String, double[]> call(Map<String, double[]> m1, Map<String, double[]> m2) {
+            // iterate map1 and merge it to map2
+            Set<Map.Entry<String, double[]>> m1Entries = m1.entrySet();
+            for (Map.Entry<String, double[]> m1Entry : m1Entries) {
+                double[] m2Value = m2.get(m1Entry.getKey());
+                double[] m1Value = m1Entry.getValue();
+                if (m2Value == null) {
+                    m2.put(m1Entry.getKey(), m1Value);
+                }
+                else {
+                    m2Value[0] += m1Value[0];
+                    m2Value[1] += m1Value[1];
+                }
+            }
+          return m2;
         }
       }, Durations.minutes(windowSize), Durations.seconds(processInterval));  //func, windowlength, slideinterval
 
     // put the result to kafka broker
-    qualitySums.foreachRDD(new VoidFunction<JavaPairRDD<String,Integer>>() {
-      @Override
-      public void call(JavaPairRDD<String, Integer> values)
-        throws Exception {
-          values.foreach(new VoidFunction<Tuple2<String, Integer>> () {
-            @Override
-            public void call(Tuple2<String, Integer> tuple)
-              throws Exception {
-                ProducerRecord<String, String> data = new ProducerRecord<>(topicOut, tuple._1() + ";Group: " + tuple._1() + "  =>  Sum: " + tuple._2() + "...From: " + brokers);
-                KafkaProducer<String, String> kproducer = new KafkaProducer<String, String>(producerProps);
-                kproducer.send(data);
-                //System.out.format("------- Sum: %d ------\n", tuple._2());
-            }} );
+    qualitySums.foreachRDD(new VoidFunction<JavaPairRDD<String, Map<String, double[]>>>() {
+        @Override
+        public void call(JavaPairRDD<String, Map<String, double[]>> groups) throws Exception {
+            // foreach group
+            groups.foreach(new VoidFunction<Tuple2<String, Map<String, double[]>>> () {
+                @Override
+                public void call(Tuple2<String, Map<String, double[]>> group) throws Exception {
+                    // select best decision and put other decisions to a json array
+                    double bestScore = -1;
+                    String bestDecision = null;
+                    JSONArray jArray = new JSONArray();
+                    for (Map.Entry<String, double[]> entry : group._2().entrySet()) {
+                        if (entry.getValue()[0] / entry.getValue()[1] > bestScore) {
+                            if (bestDecision != null)
+                                jArray.put(bestDecision);
+                            bestDecision = entry.getKey();
+                            bestScore = entry.getValue()[0] / entry.getValue()[1];
+                        } else {
+                            jArray.put(entry.getKey());
+                        }
+                    }
+                    // generate the result and sent it to kafka server
+                    JSONObject jObject = new JSONObject();
+                    jObject.put("random", jArray);
+                    jObject.put("best", bestDecision);
+                    jObject.put("epsilon", epsilon);
+                    ProducerRecord<String, String> data = new ProducerRecord<>(topicOut, group._1() + ";" + jObject.toString() + ";From: " + brokers);
+                    KafkaProducer<String, String> kproducer = new KafkaProducer<String, String>(producerProps);
+                    kproducer.send(data);
+            }});
       }});
 
     // Start the computation
@@ -171,4 +208,3 @@ public final class DecisionMaker {
     jssc.awaitTermination();
   }
 }
-
