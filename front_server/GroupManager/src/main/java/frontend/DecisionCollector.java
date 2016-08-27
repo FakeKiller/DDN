@@ -2,6 +2,7 @@ package frontend;
 
 import java.io.*;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.Properties;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -48,13 +49,11 @@ public class DecisionCollector implements Runnable {
                 String[] decision = record.value().split(";");
                 try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream("/var/www/info/d_" + decision[0]), "utf-8"))) {
                     JSONObject jObject = new JSONObject(decision[1]);
-                    writer.write(String.valueOf(jObject.getDouble("epsilon")));
-                    writer.newLine();
-                    writer.write(jObject.getString("best"));
-                    JSONArray jArray = jObject.getJSONArray("random");
-                    for (int i=0; i < jArray.length(); i++) {
-                         writer.newLine();
-                         writer.write(jArray.getString(i));
+                    Iterator<String> keys = jObject.keys();
+                    while(keys.hasNext()) {
+                        String key = keys.next();
+                        writer.write(key + ";" + jObject.getDouble(key));
+                        writer.newLine();
                     }
                 } catch (Exception e) {
                     System.err.println("Caught Exception: " + e.getMessage());

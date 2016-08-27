@@ -18,13 +18,13 @@ import org.json.JSONArray;
  */
 
 
-public class DecisionCollector implements Runnable {
+public class DecisionCollector_EG implements Runnable {
 
     protected String brokerList = "";		// list of broker
     protected String hostname = "";		// name of current host
     public KafkaConsumer<String, String> consumer = null;       // kafka consumer
 
-    public DecisionCollector( String hostname, String brokerList ) {
+    public DecisionCollector_EG( String hostname, String brokerList ) {
         this.hostname = hostname;
         this.brokerList = brokerList;
         // setup consumer

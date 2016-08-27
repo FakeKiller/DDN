@@ -19,19 +19,19 @@ if (empty($group_id)) {
     $out = file_get_contents('/var/www/info/d_'.$group_id);
 } else {
     $decisions = file('/var/www/info/d_'.$group_id);
-    if (count($decisions) == 2) {
-        $out = $decisions[1];
-    } else if (count($decisions) > 2) {
-        $epsilon = floatval($decisions[0]);
-        // get random decision
-        if (rand(0, 100) < $epsilon * 100) {
-            $out = $decisions[rand(0,count($decisions)-3)+2];
-        }
-        // get best decision
-        else {
-            $out = $decisions[1];
+    $cnt = count($decisions);
+    $value = rand(0,100);
+    for ($i = 0; $i < $cnt; $i++) {
+        $decision = explode(";", $decisions[$i]);
+        $value -= $decision[1] * 100;
+        if ($value <= 0) {
+            $out = $decision[0];
+            break;
         }
     }
+    // in case value still bigger than 0. that is, $out is still unassigned
+    if ($value > 0)
+        $out = $decision[0];
 }
 
 // response

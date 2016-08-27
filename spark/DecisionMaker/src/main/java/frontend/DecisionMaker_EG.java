@@ -53,7 +53,7 @@ import org.apache.log4j.Level;
 
 
 
-public final class DecisionMaker {
+public final class DecisionMaker_EG {
 
   public final static int windowSize = 10; // minutes
   public final static int processInterval = 2; // seconds
