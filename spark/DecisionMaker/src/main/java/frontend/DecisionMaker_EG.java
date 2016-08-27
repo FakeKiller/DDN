@@ -55,15 +55,16 @@ import org.apache.log4j.Level;
 
 public final class DecisionMaker {
 
-  public final static int windowSize = 1; // minutes
-  public final static int processInterval = 1; // seconds
+  public final static int windowSize = 10; // minutes
+  public final static int processInterval = 2; // seconds
 
   public static void main(String[] args) throws Exception {
-    if (args.length < 4) {
+    if (args.length < 5) {
       System.err.println("Usage: DecisionMaker <brokers> <topic-in> <topic-out> <epsilon> <RPS>\n" +
           "  <brokers> is a list of one or more Kafka brokers\n" +
           "  <topic-in> is the kafka topic to consume from\n" +
           "  <topic-out> is the kafka topic to publish the decision to\n" +
+          "  <epsilon> is the parameter of epsilon greedy algorithm\n" +
           "  <RPS> is the RPS to preload history data of sliding window\n");
       System.exit(1);
     }
@@ -75,7 +76,8 @@ public final class DecisionMaker {
     final String brokers = args[0];
     String topicIn = args[1];
     final String topicOut = args[2];
-    int RPS = Integer.parseInt(args[3]);
+    final double epsilon = Double.parseDouble(args[3]);
+    int RPS = Integer.parseInt(args[4]);
 
     // setup producer
     final Properties producerProps = new Properties();
@@ -90,28 +92,28 @@ public final class DecisionMaker {
 
     // Create context with a 1 seconds batch interval
     SparkConf sparkConf = new SparkConf().setAppName("DicisionMaker");
-    final JavaStreamingContext jssc = new JavaStreamingContext(sparkConf, Durations.milliseconds(500));
+    final JavaStreamingContext jssc = new JavaStreamingContext(sparkConf, Durations.milliseconds(1000));
 
     // Create direct kafka stream with brokers and topic
     Set<String> topicsSet = new HashSet<>(Arrays.asList(topicIn));
     Map<String, String> kafkaParams = new HashMap<>();
     kafkaParams.put("metadata.broker.list", brokers);
     JavaPairInputDStream<String, String> messages = KafkaUtils.createDirectStream(
-        jssc,
-        String.class,
-        String.class,
-        StringDecoder.class,
-        StringDecoder.class,
-        kafkaParams,
-        topicsSet
+      jssc,
+      String.class,
+      String.class,
+      StringDecoder.class,
+      StringDecoder.class,
+      kafkaParams,
+      topicsSet
     );
 
     // Load history data
     String postData = "";
     try (BufferedReader br = new BufferedReader(new FileReader("/var/spark_tmp/entry.dat"))) {
-        postData = br.readLine();
+      postData = br.readLine();
     } catch (Exception e) {
-        System.err.println("Load data exception: " + e.getMessage());
+      System.err.println("Load data exception: " + e.getMessage());
     }
     List<Tuple2<String, String>> historyData = Collections.nCopies(RPS * 60, new Tuple2<String,String>("history", postData)); // load one minute's history data per second
     final JavaRDD<Tuple2<String, String>> historyDData = jssc.sparkContext().parallelize(historyData);
@@ -121,75 +123,55 @@ public final class DecisionMaker {
     final JavaRDD<Tuple2<String, String>> emptyDData = jssc.sparkContext().parallelize(emptyData);
     final long startTime = System.currentTimeMillis();
     final ConstantInputDStream<Tuple2<String, String>> historyInputDStream = new ConstantInputDStream<Tuple2<String, String>>(jssc.ssc(), historyDData.rdd(), ClassTag$.MODULE$.<Tuple2<String, String>>apply(new Tuple2<String, String>("", "").getClass())) {
-        @Override
-        public scala.Option<RDD<Tuple2<String, String>>> compute(Time validTime) {
-            if (validTime.milliseconds() > startTime && validTime.milliseconds() < startTime + windowSize * 1000 + 100) // 500 is a compensation for pre-processing time
-                return Some.apply(historyDData.rdd());
-            else
-                return Some.apply(emptyDData.rdd());
-        }
+      @Override
+      public scala.Option<RDD<Tuple2<String, String>>> compute(Time validTime) {
+        if (validTime.milliseconds() > startTime && validTime.milliseconds() < startTime + windowSize * 1000 + 100) // 500 is a compensation for pre-processing time
+          return Some.apply(historyDData.rdd());
+        else
+          return Some.apply(emptyDData.rdd());
+      }
     };
     DStream<Tuple2<String, String>> historyDStream = historyInputDStream;
     JavaPairDStream<String, String> historyPairDStream = new JavaPairDStream(historyDStream, ClassTag$.MODULE$.apply("".getClass()), ClassTag$.MODULE$.apply("".getClass()));
 
     // map to pair to retrieve the data and group_id
-    // then reduce by key to combine the performance of each batch
+    // then reduce by key to combine the performance of each decision within sliding window
     JavaPairDStream<String, Map<String, double[]>> qualitySums = messages.union(historyPairDStream).mapToPair(
-        new PairFunction<Tuple2<String, String>, String, Map<String, double[]>>() {
-            @Override
-            public Tuple2<String, Map<String, double[]>> call(Tuple2<String, String> tuple2) {
-                JSONObject jObject = new JSONObject(tuple2._2().trim());
-                String group_id = jObject.getString("group_id");
-                String[] updates = jObject.getString("update").split("\t");
-                double score = Double.parseDouble(updates[13]);
-                String decision = updates[14];
-                Map<String, double[]> info = new HashMap<String, double[]>();
-                info.put(decision, new double[]{score,1});
-                return new Tuple2<>(group_id, info);
-            }
-        }).reduceByKey(
+      new PairFunction<Tuple2<String, String>, String, Map<String, double[]>>() {
+        @Override
+        public Tuple2<String, Map<String, double[]>> call(Tuple2<String, String> tuple2) {
+          JSONObject jObject = new JSONObject(tuple2._2().trim());
+          String group_id = jObject.getString("group_id");
+          String[] updates = jObject.getString("update").split("\t");
+          int score = Integer.parseInt(updates[13]);
+          String decision = updates[14];
+          Map<String, double[]> info = new HashMap<String, double[]>();
+          info.put(decision, new double[]{score,1});
+          return new Tuple2<>(group_id, info);
+        }
+      }).reduceByKeyAndWindow(
         new Function2<Map<String, double[]>, Map<String, double[]>, Map<String, double[]>>() {
-            @Override
-            public Map<String, double[]> call(Map<String, double[]> m1, Map<String, double[]> m2) {
-                // iterate map1 and merge it to map2
-                Set<Map.Entry<String, double[]>> m1Entries = m1.entrySet();
-                for (Map.Entry<String, double[]> m1Entry : m1Entries) {
-                    double[] m2Value = m2.get(m1Entry.getKey());
-                    double[] m1Value = m1Entry.getValue();
-                    if (m2Value == null) {
-                        m2.put(m1Entry.getKey(), m1Value);
-                    }
-                    else {
-                        m2Value[0] += m1Value[0];
-                        m2Value[1] += m1Value[1];
-                    }
+        @Override
+        public Map<String, double[]> call(Map<String, double[]> m1, Map<String, double[]> m2) {
+            // iterate map1 and merge it to map2
+            Set<Map.Entry<String, double[]>> m1Entries = m1.entrySet();
+            for (Map.Entry<String, double[]> m1Entry : m1Entries) {
+                double[] m2Value = m2.get(m1Entry.getKey());
+                double[] m1Value = m1Entry.getValue();
+                if (m2Value == null) {
+                    m2.put(m1Entry.getKey(), m1Value);
                 }
-                return m2;
+                else {
+                    m2Value[0] += m1Value[0];
+                    m2Value[1] += m1Value[1];
+                }
             }
-        });
+          return m2;
+        }
+      }, Durations.minutes(windowSize), Durations.seconds(processInterval));  //func, windowlength, slideinterval
 
-    JavaPairDStream<String, Map<String, double[]>> decisionList = qualitySums.reduceByKeyAndWindow(
-        new Function2<Map<String, double[]>, Map<String, double[]>, Map<String, double[]>>() {
-            @Override
-            public Map<String, double[]> call(Map<String, double[]> m1, Map<String, double[]> m2) {
-                // iterate map1 and merge it to map2
-                Set<Map.Entry<String, double[]>> m1Entries = m1.entrySet();
-                for (Map.Entry<String, double[]> m1Entry : m1Entries) {
-                    double[] m2Value = m2.get(m1Entry.getKey());
-                    double[] m1Value = m1Entry.getValue();
-                    if (m2Value == null) {
-                        m2.put(m1Entry.getKey(), m1Value);
-                    }
-                    else {
-                        m2Value[0] += m1Value[0];
-                        m2Value[1] += m1Value[1];
-                    }
-                }
-              return m2;
-            }
-        }, Durations.minutes(windowSize), Durations.seconds(processInterval));
     // put the result to kafka broker
-    decisionList.foreachRDD(new VoidFunction<JavaPairRDD<String, Map<String, double[]>>>() {
+    qualitySums.foreachRDD(new VoidFunction<JavaPairRDD<String, Map<String, double[]>>>() {
         @Override
         public void call(JavaPairRDD<String, Map<String, double[]>> groups) throws Exception {
             // foreach group
@@ -197,34 +179,29 @@ public final class DecisionMaker {
                 @Override
                 public void call(Tuple2<String, Map<String, double[]>> group) throws Exception {
                     // select best decision and put other decisions to a json array
-                    int N = 0;
-                    int i = 0;
-                    double[] score = new double[group._2().size()];
-                    double totalScore = 0;
+                    double bestScore = -1;
+                    String bestDecision = null;
+                    JSONArray jArray = new JSONArray();
                     for (Map.Entry<String, double[]> entry : group._2().entrySet()) {
-                        N += entry.getValue()[1];
-                        entry.getValue()[0] /=  entry.getValue()[1];
-                    }
-                    double sqrt2logN = Math.sqrt(2 * Math.log(N));
-                    for (Map.Entry<String, double[]> entry : group._2().entrySet()) {
-                        score[i] = entry.getValue()[0] + sqrt2logN / Math.sqrt(entry.getValue()[1]);
-                        i++;
-                    }
-                    for (i = 0; i < score.length; i++) {
-                        totalScore += score[i];
+                        if (entry.getValue()[0] / entry.getValue()[1] > bestScore) {
+                            if (bestDecision != null)
+                                jArray.put(bestDecision);
+                            bestDecision = entry.getKey();
+                            bestScore = entry.getValue()[0] / entry.getValue()[1];
+                        } else {
+                            jArray.put(entry.getKey());
+                        }
                     }
                     // generate the result and sent it to kafka server
                     JSONObject jObject = new JSONObject();
-                    i = 0;
-                    for (Map.Entry<String, double[]> entry : group._2().entrySet()) {
-                        jObject.put(entry.getKey(), score[i] / totalScore);
-                        i++;
-                    }
+                    jObject.put("random", jArray);
+                    jObject.put("best", bestDecision);
+                    jObject.put("epsilon", epsilon);
                     ProducerRecord<String, String> data = new ProducerRecord<>(topicOut, group._1() + ";" + jObject.toString() + ";From: " + brokers);
                     KafkaProducer<String, String> kproducer = new KafkaProducer<String, String>(producerProps);
                     kproducer.send(data);
             }});
-        }});
+      }});
 
     // Start the computation
     jssc.start();
