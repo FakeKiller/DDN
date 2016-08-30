@@ -208,49 +208,53 @@ public final class DecisionMaker {
             //    }
             //}
 
-            combinedResult.foreach(new VoidFunction<Tuple2<String, Map<String, double[]>>> () {
+            combinedResult.foreachPartition(new VoidFunction<Iterator<Tuple2<String, Map<String, double[]>>>> () {
                 @Override
-                public void call(Tuple2<String, Map<String, double[]>> group) throws Exception {
-                    // select best decision and put other decisions to a json array
-                    int N = 0;
-                    int i = 0;
-                    double[] score = new double[group._2().size()];
-                    double totalScore = 0;
-                    for (Map.Entry<String, double[]> entry : group._2().entrySet()) {
-                        N += entry.getValue()[1];
-                        if (entry.getValue()[1] > 0)
-                            entry.getValue()[0] /=  entry.getValue()[1];
-                        else
-                            entry.getValue()[0] = 0;
-                    }
-                    double sqrt2logN = 0;
-                    // if N <= 1, then it will be a negative number or zero.
-                    // in this case, we will not compute the Ct(y,i)
-                    if (N > 1)
-                        Math.sqrt(2 * Math.log(N));
-                    for (Map.Entry<String, double[]> entry : group._2().entrySet()) {
-                        if (entry.getValue()[1] > 0)
-                            score[i] = entry.getValue()[0] + sqrt2logN / Math.sqrt(entry.getValue()[1]);
-                        else
-                            score[i] = 0;
-                        i++;
-                    }
-                    for (i = 0; i < score.length; i++) {
-                        totalScore += score[i];
-                    }
-                    // generate the result and sent it to kafka server
-                    JSONObject jObject = new JSONObject();
-                    i = 0;
-                    for (Map.Entry<String, double[]> entry : group._2().entrySet()) {
-                        if (totalScore > 0) 
-                            jObject.put(entry.getKey(), score[i] / totalScore);
-                        else
-                            jObject.put(entry.getKey(), 1.0 / score.length);
-                        i++;
-                    }
-                    ProducerRecord<String, String> data = new ProducerRecord<>(topicOut, group._1() + ";" + jObject.toString() + ";From: " + brokers);
+                public void call(Iterator<Tuple2<String, Map<String, double[]>>> group_iter) throws Exception {
                     KafkaProducer<String, String> kproducer = new KafkaProducer<String, String>(producerProps);
-                    kproducer.send(data);
+                    Tuple2<String, Map<String, double[]>> group = null;
+                    while (group_iter.hasNext()) {
+                        group = group_iter.next();
+                        // select best decision and put other decisions to a json array
+                        int N = 0;
+                        int i = 0;
+                        double[] score = new double[group._2().size()];
+                        double totalScore = 0;
+                        for (Map.Entry<String, double[]> entry : group._2().entrySet()) {
+                            N += entry.getValue()[1];
+                            if (entry.getValue()[1] > 0)
+                                entry.getValue()[0] /=  entry.getValue()[1];
+                            else
+                                entry.getValue()[0] = 0;
+                        }
+                        double sqrt2logN = 0;
+                        // if N <= 1, then it will be a negative number or zero.
+                        // in this case, we will not compute the Ct(y,i)
+                        if (N > 1)
+                            Math.sqrt(2 * Math.log(N));
+                        for (Map.Entry<String, double[]> entry : group._2().entrySet()) {
+                            if (entry.getValue()[1] > 0)
+                                score[i] = entry.getValue()[0] + sqrt2logN / Math.sqrt(entry.getValue()[1]);
+                            else
+                                score[i] = 0;
+                            i++;
+                        }
+                        for (i = 0; i < score.length; i++) {
+                            totalScore += score[i];
+                        }
+                        // generate the result and sent it to kafka server
+                        JSONObject jObject = new JSONObject();
+                        i = 0;
+                        for (Map.Entry<String, double[]> entry : group._2().entrySet()) {
+                            if (totalScore > 0) 
+                                jObject.put(entry.getKey(), score[i] / totalScore);
+                            else
+                                jObject.put(entry.getKey(), 1.0 / score.length);
+                            i++;
+                        }
+                        ProducerRecord<String, String> data = new ProducerRecord<>(topicOut, group._1() + ";" + jObject.toString() + ";From: " + brokers);
+                        kproducer.send(data);
+                    }
             }});
         }});
 

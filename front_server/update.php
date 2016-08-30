@@ -14,7 +14,8 @@ include 'match.php';
 
 // if no match
 if (empty($group_id)) {
-    $group_id = "null";
+    //$group_id = "null";
+    $group_id = $features[4];
     // get default decision
     $out = file_get_contents('/var/www/info/d_'.$group_id);
 } else {
