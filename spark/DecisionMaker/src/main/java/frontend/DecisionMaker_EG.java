@@ -143,8 +143,8 @@ public final class DecisionMaker_EG {
           JSONObject jObject = new JSONObject(tuple2._2().trim());
           String group_id = jObject.getString("group_id");
           String[] updates = jObject.getString("update").split("\t");
-          int score = Integer.parseInt(updates[13]);
-          String decision = updates[14];
+          String decision = updates[0];
+          double score = 10000 / Math.max(Double.parseDouble(updates[1]), 1);
           Map<String, double[]> info = new HashMap<String, double[]>();
           info.put(decision, new double[]{score,1});
           return new Tuple2<>(group_id, info);

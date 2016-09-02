@@ -101,8 +101,9 @@ public final class DecisionMaker {
                 JSONObject jObject = new JSONObject(tuple2._2().trim());
                 String group_id = jObject.getString("group_id");
                 String[] updates = jObject.getString("update").split("\t");
-                double score = Double.parseDouble(updates[13]);
-                String decision = updates[14];
+                String decision = updates[0];
+                // prevent dividing by zero
+                double score = 10000 / Math.max(Double.parseDouble(updates[1]),1);
                 Map<String, double[]> info = new HashMap<String, double[]>();
                 info.put(decision, new double[]{score,1});
                 return new Tuple2<>(group_id, info);
@@ -217,9 +218,8 @@ public final class DecisionMaker {
                         group = group_iter.next();
                         // select best decision and put other decisions to a json array
                         int N = 0;
-                        int i = 0;
-                        double[] score = new double[group._2().size()];
-                        double totalScore = 0;
+                        double score, max_score = -1;
+                        String best_decision = "";
                         for (Map.Entry<String, double[]> entry : group._2().entrySet()) {
                             N += entry.getValue()[1];
                             if (entry.getValue()[1] > 0)
@@ -231,28 +231,16 @@ public final class DecisionMaker {
                         // if N <= 1, then it will be a negative number or zero.
                         // in this case, we will not compute the Ct(y,i)
                         if (N > 1)
-                            Math.sqrt(2 * Math.log(N));
+                            sqrt2logN = Math.sqrt(2 * Math.log(N));
                         for (Map.Entry<String, double[]> entry : group._2().entrySet()) {
                             if (entry.getValue()[1] > 0)
-                                score[i] = entry.getValue()[0] + sqrt2logN / Math.sqrt(entry.getValue()[1]);
+                                score = entry.getValue()[0] + sqrt2logN / Math.sqrt(entry.getValue()[1]);
                             else
-                                score[i] = 0;
-                            i++;
+                                score = 0;
+                            if (score > max_score)
+                                best_decision = entry.getKey();
                         }
-                        for (i = 0; i < score.length; i++) {
-                            totalScore += score[i];
-                        }
-                        // generate the result and sent it to kafka server
-                        JSONObject jObject = new JSONObject();
-                        i = 0;
-                        for (Map.Entry<String, double[]> entry : group._2().entrySet()) {
-                            if (totalScore > 0) 
-                                jObject.put(entry.getKey(), score[i] / totalScore);
-                            else
-                                jObject.put(entry.getKey(), 1.0 / score.length);
-                            i++;
-                        }
-                        ProducerRecord<String, String> data = new ProducerRecord<>(topicOut, group._1() + ";" + jObject.toString() + ";From: " + brokers);
+                        ProducerRecord<String, String> data = new ProducerRecord<>(topicOut, group._1() + ";" + best_decision + ";From: " + brokers);
                         kproducer.send(data);
                     }
             }});

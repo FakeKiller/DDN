@@ -48,13 +48,7 @@ public class DecisionCollector implements Runnable {
             for (ConsumerRecord<String, String> record : records) {
                 String[] decision = record.value().split(";");
                 try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream("/var/www/info/d_" + decision[0]), "utf-8"))) {
-                    JSONObject jObject = new JSONObject(decision[1]);
-                    Iterator<String> keys = jObject.keys();
-                    while(keys.hasNext()) {
-                        String key = keys.next();
-                        writer.write(key + ";" + jObject.getDouble(key));
-                        writer.newLine();
-                    }
+                    writer.write(decision[1]);
                 } catch (Exception e) {
                     System.err.println("Caught Exception: " + e.getMessage());
                 }
