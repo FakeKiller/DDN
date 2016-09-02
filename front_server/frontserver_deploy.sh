@@ -22,7 +22,6 @@ export JAVA_HOME=$JAVA_HOME
 sudo apt-get install -y apache2 php5 libapache2-mod-php5
 
 # Configure the httpd
-sudo chmod 777 update.php
 sudo cp update.php /var/www/html
 sudo mkdir /var/www/info
 sudo chmod 777 /var/www/info
