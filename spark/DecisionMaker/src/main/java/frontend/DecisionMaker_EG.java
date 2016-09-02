@@ -144,7 +144,7 @@ public final class DecisionMaker_EG {
           String group_id = jObject.getString("group_id");
           String[] updates = jObject.getString("update").split("\t");
           String decision = updates[0];
-          double score = 10000 / Math.max(Double.parseDouble(updates[1]), 1);
+          double score = 0 - Double.parseDouble(updates[1]);
           Map<String, double[]> info = new HashMap<String, double[]>();
           info.put(decision, new double[]{score,1});
           return new Tuple2<>(group_id, info);
@@ -168,7 +168,7 @@ public final class DecisionMaker_EG {
             }
           return m2;
         }
-      }, Durations.minutes(windowSize), Durations.seconds(processInterval));  //func, windowlength, slideinterval
+      }, Durations.seconds(windowSize), Durations.seconds(processInterval));  //func, windowlength, slideinterval
 
     // put the result to kafka broker
     qualitySums.foreachRDD(new VoidFunction<JavaPairRDD<String, Map<String, double[]>>>() {
@@ -179,7 +179,7 @@ public final class DecisionMaker_EG {
                 @Override
                 public void call(Tuple2<String, Map<String, double[]>> group) throws Exception {
                     // select best decision and put other decisions to a json array
-                    double bestScore = -1;
+                    double bestScore = -Double.MAX_VALUE;
                     String bestDecision = null;
                     JSONArray jArray = new JSONArray();
                     for (Map.Entry<String, double[]> entry : group._2().entrySet()) {

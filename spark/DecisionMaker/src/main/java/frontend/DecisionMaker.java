@@ -46,11 +46,12 @@ public final class DecisionMaker {
   public final static int processInterval = 2; // seconds
 
   public static void main(String[] args) throws Exception {
-    if (args.length < 3) {
+    if (args.length < 4) {
       System.err.println("Usage: DecisionMaker <brokers> <topic-in> <topic-out>\n" +
           "  <brokers> is a list of one or more Kafka brokers\n" +
           "  <topic-in> is the kafka topic to consume from\n" +
-          "  <topic-out> is the kafka topic to publish the decision to\n");
+          "  <topic-out> is the kafka topic to publish the decision to\n" +
+          "  <gmmma> is gamma!");
       System.exit(1);
     }
 
@@ -61,7 +62,7 @@ public final class DecisionMaker {
     final String brokers = args[0];
     String topicIn = args[1];
     final String topicOut = args[2];
-    final double gamma = 0.7;
+    final double gamma = Double.parseDouble(args[3]);
 
     // setup producer
     final Properties producerProps = new Properties();
@@ -103,7 +104,7 @@ public final class DecisionMaker {
                 String[] updates = jObject.getString("update").split("\t");
                 String decision = updates[0];
                 // prevent dividing by zero
-                double score = 10000 / Math.max(Double.parseDouble(updates[1]),1);
+                double score = 0 - Double.parseDouble(updates[1]);
                 Map<String, double[]> info = new HashMap<String, double[]>();
                 info.put(decision, new double[]{score,1});
                 return new Tuple2<>(group_id, info);
@@ -196,18 +197,18 @@ public final class DecisionMaker {
             // update the old result rdd
             queue.add(combinedResult);
 
-            //// to show the combined result clearly
-            //List<Tuple2<String, Map<String, double[]>>> collectedResult = combinedResult.collect();
-            //Tuple2<String, Map<String, double[]>> tmpTuple2 = null;
-            //Map<String, double[]> tmpMap = null;
-            //for (int i = 0; i < collectedResult.size(); i++) {
-            //    tmpTuple2 = collectedResult.get(i);
-            //    System.out.println(tmpTuple2._1() + "----");
-            //    tmpMap = tmpTuple2._2();
-            //    for (Map.Entry<String, double[]> entry : tmpMap.entrySet()) {
-            //        System.out.printf("\t%s : (%f, %f)\n", entry.getKey(), entry.getValue()[0], entry.getValue()[1]);
-            //    }
-            //}
+            // to show the combined result clearly
+            List<Tuple2<String, Map<String, double[]>>> collectedResult = combinedResult.collect();
+            Tuple2<String, Map<String, double[]>> tmpTuple2 = null;
+            Map<String, double[]> tmpMap = null;
+            for (int i = 0; i < collectedResult.size(); i++) {
+                tmpTuple2 = collectedResult.get(i);
+                System.out.println(tmpTuple2._1() + "----");
+                tmpMap = tmpTuple2._2();
+                for (Map.Entry<String, double[]> entry : tmpMap.entrySet()) {
+                    System.out.printf("\t%s : (%f, %f)\n", entry.getKey(), entry.getValue()[0], entry.getValue()[1]);
+                }
+            }
 
             combinedResult.foreachPartition(new VoidFunction<Iterator<Tuple2<String, Map<String, double[]>>>> () {
                 @Override
@@ -218,7 +219,7 @@ public final class DecisionMaker {
                         group = group_iter.next();
                         // select best decision and put other decisions to a json array
                         int N = 0;
-                        double score, max_score = -1;
+                        double score, max_score = -Double.MAX_VALUE;
                         String best_decision = "";
                         for (Map.Entry<String, double[]> entry : group._2().entrySet()) {
                             N += entry.getValue()[1];
@@ -227,18 +228,20 @@ public final class DecisionMaker {
                             else
                                 entry.getValue()[0] = 0;
                         }
-                        double sqrt2logN = 0;
+                        double Bsqrt2logN = 0;
                         // if N <= 1, then it will be a negative number or zero.
                         // in this case, we will not compute the Ct(y,i)
                         if (N > 1)
-                            sqrt2logN = Math.sqrt(2 * Math.log(N));
+                            Bsqrt2logN = 1000 * Math.sqrt(2 * Math.log(N));
                         for (Map.Entry<String, double[]> entry : group._2().entrySet()) {
                             if (entry.getValue()[1] > 0)
-                                score = entry.getValue()[0] + sqrt2logN / Math.sqrt(entry.getValue()[1]);
+                                score = entry.getValue()[0] + Bsqrt2logN / Math.sqrt(entry.getValue()[1]);
                             else
                                 score = 0;
+                            System.out.printf("%s--%f\n",entry.getKey(),score);
                             if (score > max_score)
                                 best_decision = entry.getKey();
+                                max_score = score;
                         }
                         ProducerRecord<String, String> data = new ProducerRecord<>(topicOut, group._1() + ";" + best_decision + ";From: " + brokers);
                         kproducer.send(data);

@@ -125,6 +125,7 @@ if __name__ == '__main__':
     test_second = 0
     send_num = 0
 
+    fout = open('result.txt','w')
     # start the test
     print "------------------------------ %3d sec" % test_second
     for trace in trace_list:
@@ -134,6 +135,7 @@ if __name__ == '__main__':
             test_second = int(time.time() - test_start_time)
             print "| send %d, average cost %d" % (send_num, cost_list[test_second-1]/request_num[test_second-1][1])
             send_num = 0
+            fout.write(str(cost_list[test_second-1] / request_num[test_second-1][1]) + '\n')
             print "------------------------------ %3d sec" % test_second
         thread = threading.Thread(target=request_performer, args=(trace))
         thread.daemon = True
@@ -143,9 +145,10 @@ if __name__ == '__main__':
     # wait all the requests and updates are finished
     time.sleep(TIMEOUT * 2)
 
+    fout.close()
     print request_num
     print cost_list
-    with open('result.txt', 'w') as fout:
-        for i in range(len(cost_list)):
-            fout.write(str(cost_list[i] / request_num[i][1]) + '\n')
+    #with open('result.txt', 'w') as fout:
+    #    for i in range(len(cost_list)):
+    #        fout.write(str(cost_list[i] / request_num[i][1]) + '\n')
 
