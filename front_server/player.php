@@ -5,6 +5,7 @@
 // Email: septimus145@gmail.com
 // August, 2016
 
+header('Access-Control-Allow-Origin: *');
 $path = '/var/www/info';
 set_include_path(get_include_path() . PATH_SEPARATOR . $path);
 $features = explode("\t", $_POST["payload"]);

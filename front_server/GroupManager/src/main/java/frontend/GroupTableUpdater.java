@@ -105,7 +105,7 @@ public class GroupTableUpdater implements Runnable {
             String field = jObjectRules.getString("Field");
             for (int i = 0; i < jArrayTable.length(); i++) {
                 JSONObject jObjectRule = jArrayTable.getJSONObject(i);
-                code.add(indentStr + "if ($_POST[\"" + field + "\"] == \"" + jObjectRule.getString("Key") + "\") {");
+                code.add(indentStr + "if ($features[" + field + "] == \"" + jObjectRule.getString("Key") + "\") {");
                 ruleParser(jObjectRule.getJSONObject("Rule"), code, indent+2);
                 code.add(indentStr + "}");
             }
