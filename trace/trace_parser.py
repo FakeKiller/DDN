@@ -56,7 +56,7 @@ def request_performer(*trace):
         load_dict_list[curr_minute][decision] += 1
     cost_factor = 1
     if sum(load_dict_list[curr_minute].values()) > 0:
-        load = load_dict_list[curr_minute][decision] / float(sum(load_dict_list[curr_minute].values()))
+        load = load_dict_list[curr_minute][decision] / float(load_dict_list[curr_minute]['total_sessions'])
         for key in sorted(trace[3][decision].keys(), reverse=True):
             if load > key:
                 cost_factor = trace[3][decision][key]
@@ -116,6 +116,11 @@ if __name__ == '__main__':
     request_num = [[0,0] for i in range(trace_stop_time - trace_start_time + 1)]
     load_dict_list = [{} for i in range((trace_stop_time - trace_start_time)/60 + 1)]
     cost_list = [0 for i in range(trace_stop_time - trace_start_time + 1)]
+
+    for load_dict in load_dict_list:
+        load_dict['total_sessions'] = 0
+    for trace in trace_list:
+        load_dict_list[(trace[0] - trace_start_time) / 60]['total_sessions'] += 1
 
     update_thread = threading.Thread(target=update_performer)
     update_thread.daemon = True

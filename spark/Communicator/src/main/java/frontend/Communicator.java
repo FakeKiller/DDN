@@ -75,6 +75,8 @@ public final class Communicator {
         final String decisionTopic = config.getProperty("decisionTopic");
         final String subscribeTopic = config.getProperty("subscribeTopic");
         final String forwardTopic = config.getProperty("forwardTopic");
+        final String sampleTopic = config.getProperty("sampleTopic");
+        final String managementLabelsNum = config.getProperty("managementLabelsNum");
 
         // setup producer basic config
         final Properties producerProps = new Properties();
@@ -150,6 +152,35 @@ public final class Communicator {
             // foreachRDD will get RDD of each batch of dstream
             @Override
             public void call(JavaPairRDD<String, String> uploadMsgsRDD) throws Exception {
+                uploadMsgsRDD.sample(false, 0.01).flatMapToPair(new PairFlatMapFunction<Tuple2<String, String>, String, Integer>() {
+                    @Override
+                    public Iterable<Tuple2<String, Integer>> call(Tuple2<String, String> tuple2) {
+                        List<Tuple2<String, Integer>> result = new ArrayList<>();
+                        String[] features = tuple2._2().split("\t");
+                        for (int i = 0; i < features.length - managementLabelsNum; i++) {
+                            result.add(new Tuple2<>(String.valueOf(i) + ";" + features[i], 1));
+                        }
+                        return result;
+                    }
+                }).reduceByKey(new Function2<Integer, Integer, Integer>() {
+                    @Override
+                    public Integer call(Integer i1, Integer i2){
+                        return i1+i2;
+                    }
+                }).foreachPartition(new VoidFunction<Iterator<Tuple2<String, Integer>>> () {
+                    @Override
+                    public void call(Iterator<Tuple2<String, Integer>> samples_iter) throws Exception {
+                        producerProps.put("bootstrap.servers", config.getProperty("backendBrokers"));
+                        KafkaProducer<String, String> kproducer = new KafkaProducer<String, String>(producerProps);
+                        ProducerRecord<String, String> data = null;
+                        Tuple2<String, Integer> sample = null;
+                        while (samples_iter.hasNext()) {
+                            sample = samples_iter.next();
+                            data = new ProducerRecord<>(sampleTopic, sample._1() + ";" + String.valueOf(sample._2()));
+                            kproducer.send(data);
+                        }
+                    }
+                })
                 uploadMsgsRDD.foreachPartition(new VoidFunction<Iterator<Tuple2<String, String>>> () {
                     @Override
                     public void call(Iterator<Tuple2<String, String>> updates_iter) throws Exception {
