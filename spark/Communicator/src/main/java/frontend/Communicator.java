@@ -76,7 +76,8 @@ public final class Communicator {
         final String subscribeTopic = config.getProperty("subscribeTopic");
         final String forwardTopic = config.getProperty("forwardTopic");
         final String sampleTopic = config.getProperty("sampleTopic");
-        final String managementLabelsNum = config.getProperty("managementLabelsNum");
+        final String aliveTopic = config.getProperty("aliveTopic");
+        final int managementLabelsNum = Integer.valueOf(config.getProperty("managementLabelsNum"));
 
         // setup producer basic config
         final Properties producerProps = new Properties();
@@ -157,7 +158,7 @@ public final class Communicator {
                     public Iterable<Tuple2<String, Integer>> call(Tuple2<String, String> tuple2) {
                         List<Tuple2<String, Integer>> result = new ArrayList<>();
                         String[] features = tuple2._2().split("\t");
-                        for (int i = 0; i < features.length - managementLabelsNum; i++) {
+                        for (int i = 0; i < (features.length - managementLabelsNum); i++) {
                             result.add(new Tuple2<>(String.valueOf(i) + ";" + features[i], 1));
                         }
                         return result;
@@ -180,7 +181,7 @@ public final class Communicator {
                             kproducer.send(data);
                         }
                     }
-                })
+                });
                 uploadMsgsRDD.foreachPartition(new VoidFunction<Iterator<Tuple2<String, String>>> () {
                     @Override
                     public void call(Iterator<Tuple2<String, String>> updates_iter) throws Exception {
@@ -193,6 +194,8 @@ public final class Communicator {
                             data = new ProducerRecord<>(uploadTopic, update._2());
                             kproducer.send(data);
                         }
+                        data = new ProducerRecord<>(aliveTopic, currentClusterID);
+                        kproducer.send(data);
                     }
                 });
             }
