@@ -69,7 +69,7 @@ def request_performer(*trace):
     #            cost_factor = trace[3][decision][key]
     #            break
     cost = cost_factor * float(trace[2][decision])
-    fout1.write("%d,%s,%s\n"%(url_idx,"local",str(trace[2][decision])))
+    fout1.write("%d,%s,%s\n"%(url_idx,"online",str(trace[2][decision])))
     print "IM ok ---" + str(trace[2][decision])
     cost_list[curr_second] += cost
     update_str = trace[1] + decision + '\t' + str(cost)

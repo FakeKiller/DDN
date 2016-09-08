@@ -46,12 +46,12 @@ public final class DecisionMaker {
   public final static int processInterval = 2; // seconds
 
   public static void main(String[] args) throws Exception {
-    if (args.length < 4) {
+    if (args.length < 5) {
       System.err.println("Usage: DecisionMaker <brokers> <topic-in> <topic-out>\n" +
           "  <brokers> is a list of one or more Kafka brokers\n" +
           "  <topic-in> is the kafka topic to consume from\n" +
           "  <topic-out> is the kafka topic to publish the decision to\n" +
-          "  <gmmma> is gamma!");
+          "  <gmmma> is gamma!\nprecisionTime");
       System.exit(1);
     }
 
@@ -63,6 +63,7 @@ public final class DecisionMaker {
     String topicIn = args[1];
     final String topicOut = args[2];
     final double gamma = Double.parseDouble(args[3]);
+    final int precisionTime = Integer.parseInt(args[4]);
 
     // setup producer
     final Properties producerProps = new Properties();
@@ -218,32 +219,54 @@ public final class DecisionMaker {
                     while (group_iter.hasNext()) {
                         group = group_iter.next();
                         // select best decision and put other decisions to a json array
-                        int N = 0;
-                        double score, max_score = -Double.MAX_VALUE;
-                        String best_decision = "";
+                        Map<String, double[]> tmpMap = new HashMap<String, double[]>();
                         for (Map.Entry<String, double[]> entry : group._2().entrySet()) {
+                            tmpMap.put(entry.getKey(), new double[]{entry.getValue()[0], entry.getValue()[1]});
+                        }
+                        int N = 0;
+                        for (Map.Entry<String, double[]> entry : tmpMap.entrySet()) {
                             N += entry.getValue()[1];
                             if (entry.getValue()[1] > 0)
                                 entry.getValue()[0] /=  entry.getValue()[1];
                             else
                                 entry.getValue()[0] = 0;
                         }
+                        double score, max_score;
+                        String best_decision = "";
+                        String decisions = "";
+                        double[] best_decision_info;
                         double Bsqrt2logN = 0;
-                        // if N <= 1, then it will be a negative number or zero.
-                        // in this case, we will not compute the Ct(y,i)
-                        if (N > 1)
-                            Bsqrt2logN = 1000 * Math.sqrt(2 * Math.log(N));
-                        for (Map.Entry<String, double[]> entry : group._2().entrySet()) {
-                            if (entry.getValue()[1] > 0)
-                                score = entry.getValue()[0] + Bsqrt2logN / Math.sqrt(entry.getValue()[1]);
-                            else
-                                score = 0;
-                            System.out.printf("%s--%f\n",entry.getKey(),score);
-                            if (score > max_score)
-                                best_decision = entry.getKey();
-                                max_score = score;
+                        for (int j=0; j < precisionTime; j++) {
+                            max_score = -Double.MAX_VALUE;
+                            Bsqrt2logN = 0;
+                            // if N <= 1, then it will be a negative number or zero.
+                            // in this case, we will not compute the Ct(y,i)
+                            if (N > 1)
+                                Bsqrt2logN = 1000 * Math.sqrt(2 * Math.log(N));
+                            for (Map.Entry<String, double[]> entry : tmpMap.entrySet()) {
+                                if (entry.getValue()[1] > 0)
+                                    score = entry.getValue()[0] + Bsqrt2logN / Math.sqrt(entry.getValue()[1]);
+                                else
+                                    score = 0;
+                                if (j == 0)
+                                    System.out.printf("%s--%f\n",entry.getKey(),score);
+                                if (score > max_score) {
+                                    best_decision = entry.getKey();
+                                    max_score = score;
+                                }
+                            }
+                            decisions += best_decision + ":";
+                            // add new decision and update the table
+                            best_decision_info = tmpMap.get(best_decision);
+                            System.out.printf("%s >>>>> %f, %f\n",best_decision,best_decision_info[0],best_decision_info[1]);
+                            best_decision_info[1] += 1;
+                            N += 1;
+                            System.out.printf("%s <<<<< %f, %f\n",best_decision,tmpMap.get(best_decision)[0],tmpMap.get(best_decision)[1]);
+                            for(Map.Entry<String, double[]> entry : tmpMap.entrySet()) {
+                                entry.setValue(new double[]{entry.getValue()[0], entry.getValue()[1]*gamma});
+                            }
                         }
-                        ProducerRecord<String, String> data = new ProducerRecord<>(topicOut, group._1() + ";" + best_decision + ";From: " + brokers);
+                        ProducerRecord<String, String> data = new ProducerRecord<>(topicOut, group._1() + ";" + decisions + ";From: " + brokers);
                         kproducer.send(data);
                     }
             }});

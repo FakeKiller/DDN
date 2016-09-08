@@ -17,7 +17,9 @@ $group_id = $features[4]; // take asn as group
 // request
 if ($_POST['method'] == 'request') {
     $decision_list = array_slice($features, 15);
-    $decision = file_get_contents($path . '/d_' . $group_id);
+    $decisions_raw = file_get_contents($path . '/d_' . $group_id);
+    $decisions_array = explode(":", trim($decisions_raw, ": \t\n\r\0\x0B"));
+    $decision = $decisions_array[rand(0,count($decisions_array)-1)];
     if (empty($decision) || !in_array($decision, $decision_list)) {
         $decision = $decision_list[array_rand($decision_list, 1)];
     }
