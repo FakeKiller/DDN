@@ -248,8 +248,8 @@ public final class DecisionMaker {
                                     score = entry.getValue()[0] + Bsqrt2logN / Math.sqrt(entry.getValue()[1]);
                                 else
                                     score = 0;
-                                if (j == 0)
-                                    System.out.printf("%s--%f\n",entry.getKey(),score);
+                                //if (j == 0)
+                                //    System.out.printf("%s--%f\n",entry.getKey(),score);
                                 if (score > max_score) {
                                     best_decision = entry.getKey();
                                     max_score = score;
@@ -258,10 +258,10 @@ public final class DecisionMaker {
                             decisions += best_decision + ":";
                             // add new decision and update the table
                             best_decision_info = tmpMap.get(best_decision);
-                            System.out.printf("%s >>>>> %f, %f\n",best_decision,best_decision_info[0],best_decision_info[1]);
+                            //System.out.printf("%s >>>>> %f, %f\n",best_decision,best_decision_info[0],best_decision_info[1]);
                             best_decision_info[1] += 1;
                             N += 1;
-                            System.out.printf("%s <<<<< %f, %f\n",best_decision,tmpMap.get(best_decision)[0],tmpMap.get(best_decision)[1]);
+                            //System.out.printf("%s <<<<< %f, %f\n",best_decision,tmpMap.get(best_decision)[0],tmpMap.get(best_decision)[1]);
                             for(Map.Entry<String, double[]> entry : tmpMap.entrySet()) {
                                 entry.setValue(new double[]{entry.getValue()[0], entry.getValue()[1]*gamma});
                             }

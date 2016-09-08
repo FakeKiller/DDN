@@ -15,7 +15,7 @@ fi
 # Install editor and jre
 sudo apt-get update
 sudo apt-get install -y vim tmux
-sudo apt-get install -y default-jre
+sudo apt-get install -y default-jdk maven
 JAVA_HOME=$(sudo update-java-alternatives -l | head -n 1 | cut -f3 -d' ')
 echo JAVA_HOME=\"$JAVA_HOME\" | sudo tee --append /etc/environment
 export JAVA_HOME=$JAVA_HOME

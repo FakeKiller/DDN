@@ -10,9 +10,8 @@ $path = '/var/www/info';
 set_include_path(get_include_path() . PATH_SEPARATOR . $path);
 $features = explode("\t", $_POST["payload"]);
 
-include 'match.php';
-
 $group_id = $features[4]; // take asn as group
+include 'match.php';
 
 // request
 if ($_POST['method'] == 'request') {
