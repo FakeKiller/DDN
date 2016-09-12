@@ -55,7 +55,7 @@ import org.apache.log4j.Level;
 
 public final class DecisionMaker_EG {
 
-  public final static int windowSize = 10; // minutes
+  public final static int windowSize = 1; // minutes
   public final static int processInterval = 2; // seconds
 
   public static void main(String[] args) throws Exception {
@@ -168,7 +168,7 @@ public final class DecisionMaker_EG {
             }
           return m2;
         }
-      }, Durations.seconds(windowSize), Durations.seconds(processInterval));  //func, windowlength, slideinterval
+      }, Durations.minutes(windowSize), Durations.seconds(processInterval));  //func, windowlength, slideinterval
 
     // put the result to kafka broker
     qualitySums.foreachRDD(new VoidFunction<JavaPairRDD<String, Map<String, double[]>>>() {
