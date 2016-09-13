@@ -138,7 +138,7 @@ if __name__ == '__main__':
             time.sleep(0.05)
         if int(time.time() - test_start_time) > test_second:
             test_second = int(time.time() - test_start_time)
-            print "| send %d, average cost %d" % (send_num, cost_list[test_second-1]/request_num[test_second-1][1])
+            print "| send %d, average cost %f" % (send_num, cost_list[test_second-1]/request_num[test_second-1][1])
             send_num = 0
             fout.write(str(cost_list[test_second-1] / request_num[test_second-1][1]) + '\n')
             print "------------------------------ %3d sec" % test_second
