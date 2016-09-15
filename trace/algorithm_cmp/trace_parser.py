@@ -23,6 +23,7 @@ URL = ''
 trace_start_time = 0
 trace_finish_time = 0
 update_queue = Queue.Queue() # message queue for request
+session_queue = Queue.Queue() # store the finished session requests for output to file
 request_num = []   # number of requests sent and succeeded [[send1, succeeded1], ... , [send2, succeeded2]]
 load_dict_list = []
 cost_list = []
@@ -33,6 +34,7 @@ def request_performer(*trace):
     global request_num
     global load_dict_list
     global cost_list
+    global session_queue
 
     curr_second = trace[0] - trace_start_time
     curr_minute = curr_second / 60
@@ -61,10 +63,12 @@ def request_performer(*trace):
             if load > key:
                 cost_factor = trace[3][decision][key]
                 break
+    cost_factor = 1
     cost = cost_factor * float(trace[2][decision])
     cost_list[curr_second] += cost
     update_str = trace[1] + decision + '\t' + str(cost)
     update_queue.put([time.time() + UPDATE_DELAY, update_str])
+    session_queue.put("%d\t%f\t%s\n"%(trace[0], cost, decision))
 
 
 def update_performer():
@@ -130,7 +134,8 @@ if __name__ == '__main__':
     test_second = 0
     send_num = 0
 
-    fout = open('result.txt','w')
+    fout = open(sys.argv[2] + '.res','w')
+    fout1 = open(sys.argv[2] + '.sepa','w')
     # start the test
     print "------------------------------ %3d sec" % test_second
     for trace in trace_list:
@@ -138,10 +143,13 @@ if __name__ == '__main__':
             time.sleep(0.05)
         if int(time.time() - test_start_time) > test_second:
             test_second = int(time.time() - test_start_time)
-            print "| send %d, average cost %f" % (send_num, cost_list[test_second-1]/request_num[test_second-1][1])
-            send_num = 0
-            fout.write(str(cost_list[test_second-1] / request_num[test_second-1][1]) + '\n')
+            if request_num[test_second-1][1] > 0:
+                print "| send %d, average cost %f" % (send_num, cost_list[test_second-1]/request_num[test_second-1][1])
+                send_num = 0
+                fout.write(str(cost_list[test_second-1] / request_num[test_second-1][1]) + '\n')
             print "------------------------------ %3d sec" % test_second
+            while not session_queue.empty():
+                fout1.write(session_queue.get())
         thread = threading.Thread(target=request_performer, args=(trace))
         thread.daemon = True
         thread.start()
@@ -151,9 +159,8 @@ if __name__ == '__main__':
     time.sleep(TIMEOUT * 2)
 
     fout.close()
+    while not session_queue.empty():
+        fout1.write(session_queue.get())
+    fout1.close()
     print request_num
     print cost_list
-    #with open('result.txt', 'w') as fout:
-    #    for i in range(len(cost_list)):
-    #        fout.write(str(cost_list[i] / request_num[i][1]) + '\n')
-

@@ -17,13 +17,13 @@ $group_id = $features[4]; // take asn as group
 // request
 if ($_POST['method'] == 'request') {
     $decision_list = array_slice($features, 15);
-    $decisions = file_get_contents($path . '/d_' . $group_id);
+    $decisions = explode("\n", file_get_contents($path . '/d_' . $group_id));
     if (count($decisions) == 2) {
         $decision = $decisions[1];
     } else if (count($decisions) > 2) {
         $epsilon = floatval($decisions[0]);
         // get random decision
-        if (rand(0, 100) < $epsilon * 100) {
+        if (rand(0, 100) > $epsilon * 100) {
             $decision = $decisions[rand(0,count($decisions)-3)+2];
         }
         // get best decision
