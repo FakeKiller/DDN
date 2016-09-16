@@ -3,4 +3,4 @@
 *.bk
 raw_data/
 trace/fault_tolerance/try*
-trace/algorithm_cmp/trace*
+trace/algorithm_cmp/result09*
