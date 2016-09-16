@@ -72,11 +72,3 @@ sudo apt-get install -y unzip
 unzip trace-to-shijie.zip
 rm -r __MACOSX trace-to-shijie.zip
 sudo chmod -R 777 trace-to-shijie
-
-# compile and run basic programs
-cd ~/front_server/GroupManager
-mvn package
-cd ~/spark/DecisionMaker
-mvn package
-cd
-bash ./start_tmux.sh

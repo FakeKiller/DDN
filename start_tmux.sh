@@ -1,5 +1,13 @@
 #!/bin/bash
 
+# compile and run basic programs
+cd ~/front_server/GroupManager
+mvn package
+cd ~/spark/DecisionMaker
+mvn package
+cd ~
+
+#tmux start
 tmux new -s algo_cmp -d
 tmux send-keys -t algo_cmp 'sudo /usr/share/kafka/bin/zookeeper-server-start.sh /usr/share/kafka/config/zookeeper.properties' C-m
 tmux split-window -t algo_cmp
