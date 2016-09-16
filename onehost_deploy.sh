@@ -79,4 +79,4 @@ mvn package
 cd ~/spark/DecisionMaker
 mvn package
 cd
-./start_tmux.sh
+bash ./start_tmux.sh
