@@ -13,7 +13,7 @@ if __name__ == '__main__':
                 values.append(float(line))
                 s += values[i-1]
                 if i >= window :
-                    if i % 10 == 0:
+                    if i % 60 == 0:
                         fout.write('%d\t%f\n' % (i,s/window))
                     s -= values[i-window]
 
