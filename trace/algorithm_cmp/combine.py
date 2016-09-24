@@ -2,7 +2,7 @@
 import sys
 
 if __name__ == '__main__':
-    window = 30
+    window = 60
     with open(sys.argv[1]) as fin:
         with open(sys.argv[1] + '.cmb', 'w') as fout:
             i = 0

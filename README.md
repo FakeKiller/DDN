@@ -2,9 +2,9 @@
 
 ##Environment
 
-System: Ubuntu 14.04
+System: Ubuntu 15.10
 
-Java compiler tools install:
+Java compiler tools ([Maven](https://maven.apache.org/)) installation:
 
 ```sh
 $ sudo apt-get update
@@ -19,7 +19,7 @@ $ sudo apt-get install -y default-jdk maven
 
 ###Web Server
 
-Deploy the httpd:
+Deploy the Apache httpd:
 
 ```sh
 ../front_server $ sudo ./frontserver_deploy.sh
@@ -35,7 +35,7 @@ compile:
 run:
 
 ```sh
-../GroupManager $ java -cp target/GroupManager-1.0-SNAPSHOT.jar frontend.GroupManager cluster_ID kafka_server rootpwd
+../GroupManager $ java -cp target/GroupManager-1.0-SNAPSHOT.jar frontend.GroupManager <cluster_ID> <kafka_server> <config_file>
 ```
 
 	cluster_ID is the ID of current cluster
@@ -44,23 +44,6 @@ run:
 
 	rootpwd is the password for root privilege
 
-###Coordinator
-
-compile:
-
-```sh
-../Coordinator $ mvn package
-```
-
-run:
-
-```sh
-../Coordinator $ java -cp target/Coordinator-1.0-SNAPSHOT.jar frontend.Coordinator cluster_ID kafka_server
-```
-
-	cluster_ID is the ID of current cluster
-
-	kafka_server is the list of IP of kafka servers, separated by comma
 
 
 ##Kafka
